@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>落ちもの平均</title>
+<meta name="description" content="一様乱数の平均で物を降らせ、中心極限定理と区間推定を体感するデモ（データサイエンスのための数学 第4回）">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one working screen — the sky (canvas) on the left, a narrow instrument panel on the right; stacks on phones. */
+:root{
+  --bg:#edf2f6; --panel:#ffffff; --ink:#1b2733; --muted:#596a7a; --line:#d3dde6;
+  --drop:#dd8417; --bar:#3c6e9c; --band:#1f8f82; --ok:#2c8a56; --miss:#c43f37;
+  --sky-top:#dfe9f2; --sky-bot:#f6f9fb;
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --drop:#f2a540; --bar:#6ea2d4; --band:#47bfae; --ok:#5cc489; --miss:#ef6b62;
+  --sky-top:#132331; --sky-bot:#0f1a24; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --drop:#f2a540; --bar:#6ea2d4; --band:#47bfae; --ok:#5cc489; --miss:#ef6b62;
+  --sky-top:#132331; --sky-bot:#0f1a24; color-scheme:dark}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;padding:16px;padding-block:20px 28px;box-sizing:border-box}
+*{box-sizing:border-box}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-display);font-size:1.7rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+.course{color:var(--muted);font-size:.85rem;letter-spacing:.06em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--band);outline-offset:2px}
+.lead{margin:0;max-width:64ch;color:var(--ink)}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+@media (max-width:840px){.grid{grid-template-columns:minmax(0,1fr)}}
+.stage{position:relative;height:clamp(380px,64vh,640px);border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+canvas{display:block;width:100%;height:100%}
+aside{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.ctl{display:flex;flex-direction:column;gap:4px}
+.ctl label{font-weight:700;font-size:.9rem;display:flex;justify-content:space-between;align-items:baseline}
+.ctl label output{font-family:var(--f-num);font-size:1.25rem;color:var(--drop)}
+input[type=range]{width:100%;accent-color:var(--drop)}
+.hint{font-size:.8rem;color:var(--muted);margin:0}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button.b{font:inherit;font-size:.9rem;font-weight:700;padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+button.b.primary{background:var(--drop);border-color:var(--drop);color:#1b1206}
+button.b:hover{border-color:var(--muted)}
+.checks{display:flex;flex-direction:column;gap:6px;font-size:.9rem}
+.checks label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.stats{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:.88rem}
+.stats dt{color:var(--muted)}
+.stats dd{margin:0;text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.stats dd.big{font-size:1.15rem}
+.sec-title{font-size:.72rem;letter-spacing:.14em;color:var(--muted);margin:0 0 2px;font-weight:700}
+.note{font-size:.82rem;color:var(--muted);margin:0;max-width:70ch}
+.key{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:middle;margin-right:4px}
+footer{font-size:.78rem;color:var(--muted)}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>落ちもの平均</h1>
+    <span class="course">データサイエンスのための数学　第4回</span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-a" aria-selected="true">① 平均で降らせる</button>
+    <button class="tab" role="tab" id="tab-b" aria-selected="false">② 中心を見積もる（区間推定）</button>
+  </div>
+  <p class="lead" id="lead"></p>
+
+  <div class="grid">
+    <div class="stage"><canvas id="cv" aria-label="落下シミュレーション"></canvas></div>
+    <aside>
+      <div class="ctl">
+        <label for="n">平均する乱数の個数 n <output id="nOut">1</output></label>
+        <input type="range" id="n" min="1" max="16" step="1" value="1">
+        <p class="hint">落ちる位置 ＝ 一様乱数 n 個の平均。n を変えると記録をリセットします。</p>
+      </div>
+
+      <div id="panel-a">
+        <div class="ctl">
+          <label for="rate">降らせる速さ <output id="rateOut">30</output></label>
+          <input type="range" id="rate" min="0" max="200" step="5" value="30">
+          <p class="hint">1秒あたりの個数</p>
+        </div>
+        <div class="btns" style="margin-top:10px">
+          <button class="b primary" id="burst">一気に1000個</button>
+          <button class="b" id="resetA">リセット</button>
+        </div>
+        <div class="checks" style="margin-top:12px">
+          <label><input type="checkbox" id="showBand"> 平均 ± 2σ/√n の範囲を表示</label>
+          <label><input type="checkbox" id="showCurve"> 正規分布の曲線を重ねる</label>
+        </div>
+      </div>
+
+      <div id="panel-b" hidden>
+        <div class="btns">
+          <button class="b primary" id="drop1">1個降らす</button>
+          <button class="b" id="drop20">20個連続</button>
+        </div>
+        <div class="checks" style="margin-top:12px">
+          <label><input type="checkbox" id="reveal"> 本当の中心を見る</label>
+        </div>
+        <div class="btns" style="margin-top:10px">
+          <button class="b" id="newCenter">中心を変えてやり直す</button>
+        </div>
+      </div>
+
+      <div>
+        <p class="sec-title">記録</p>
+        <dl class="stats" id="stats"></dl>
+      </div>
+    </aside>
+  </div>
+  <p class="note" id="note"></p>
+  <footer>一様乱数は幅70の区間から選んでいます（1個あたりの標準偏差 σ = 70/√12 ≈ 20.2）。標準偏差は n で割る定義で計算しています。</footer>
+</div>
+
+<script>
+(() => {
+  const W1 = 70, SIG1 = W1 / Math.sqrt(12), NB = 50, BW = 100 / NB;
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const $ = id => document.getElementById(id);
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const S = {
+    mode: 'a', n: 1, rate: 30, acc: 0,
+    bins: new Array(NB).fill(0), N: 0, sum: 0, sq: 0, drops: [],
+    showBand: false, showCurve: false,
+    c: 50, trials: [], bdrops: [], queue: 0, qAcc: 0, reveal: false
+  };
+  const sig = () => SIG1 / Math.sqrt(S.n);
+  const sampleMean = c => { let s = 0; for (let i = 0; i < S.n; i++) s += Math.random(); return c + (s / S.n - 0.5) * W1; };
+  const newCenter = () => 35 + Math.random() * 30;
+  S.c = newCenter();
+
+  const LEAD = {
+    a: '一様乱数で左右の位置を決めると、範囲のどこにでも同じだけ落ちて不自然に見えます。乱数をいくつか平均してから落とすと、真ん中に集まって「ばらまいた」ように見えます。n を 1, 2, 4, 16 と変えて、山の形と幅を比べてください。',
+    b: '今度は降らせている中心が隠れています。落ちた位置 x だけから「中心はたぶん x − 2σ/√n 〜 x + 2σ/√n のどこか」と幅で見積もるのが区間推定です。何回も繰り返して、その幅が本当の中心を含む割合を確かめましょう。'
+  };
+  const NOTE = {
+    a: 'n=1 は一様分布で平ら、n=2 で三角形、n=4 くらいで釣鐘形になります。山の幅（標準偏差）は σ/√n。n を4倍にすると幅は半分です。この「平均をとると正規分布に近づき、幅が√nで縮む」性質が中心極限定理です。',
+    b: '帯は落ちた位置 ± 2σ/√n。n を大きくすると帯は短くなりますが、中心を含む割合はおよそ95%のままです。n が小さいと95%より高めに出ます（元の乱数が一様分布で、端まで行かないため）。'
+  };
+
+  function fmt(v, d = 1) { return Number.isFinite(v) ? v.toFixed(d) : '—'; }
+  function updateStats() {
+    const el = $('stats');
+    if (S.mode === 'a') {
+      const m = S.sum / S.N, sd = Math.sqrt(Math.max(0, S.sq / S.N - m * m));
+      el.innerHTML = `
+        <dt>落ちた個数</dt><dd class="big">${S.N}</dd>
+        <dt>平均（実測）</dt><dd>${S.N ? fmt(m) : '—'}</dd>
+        <dt>標準偏差（実測）</dt><dd>${S.N > 1 ? fmt(sd) : '—'}</dd>
+        <dt>理論 σ/√n</dt><dd class="big">${fmt(sig())}</dd>
+        <dt>目安 50 ± 2σ/√n</dt><dd>${fmt(50 - 2 * sig())} 〜 ${fmt(50 + 2 * sig())}</dd>`;
+    } else {
+      const t = S.trials.length, hit = S.trials.filter(r => r.cover).length;
+      const last = S.trials[t - 1];
+      el.innerHTML = `
+        <dt>試行回数</dt><dd class="big">${t}</dd>
+        <dt>最新の落下位置 x</dt><dd>${last ? fmt(last.x) : '—'}</dd>
+        <dt>帯の半分 2σ/√n</dt><dd>${fmt(2 * sig())}</dd>
+        <dt>見積もった区間</dt><dd>${last ? fmt(last.x - 2 * sig()) + ' 〜 ' + fmt(last.x + 2 * sig()) : '—'}</dd>
+        <dt>中心を含んだ割合</dt><dd class="big">${S.reveal ? (t ? `${hit}/${t}（${fmt(100 * hit / t, 0)}%）` : '—') : '「中心を見る」で表示'}</dd>`;
+    }
+  }
+
+  function resetA() { S.bins.fill(0); S.N = S.sum = S.sq = 0; S.drops = []; updateStats(); }
+  function resetB(keepCenter) { S.trials = []; S.bdrops = []; S.queue = 0; if (!keepCenter) S.c = newCenter(); updateStats(); }
+  function landA(x) { const b = Math.min(NB - 1, Math.max(0, Math.floor(x / BW))); S.bins[b]++; S.N++; S.sum += x; S.sq += x * x; }
+  function landB(x) { const h = 2 * sig(); S.trials.push({ x, h, cover: Math.abs(x - S.c) <= h }); }
+
+  function setMode(m) {
+    S.mode = m;
+    $('tab-a').setAttribute('aria-selected', m === 'a'); $('tab-b').setAttribute('aria-selected', m === 'b');
+    $('panel-a').hidden = m !== 'a'; $('panel-b').hidden = m !== 'b';
+    $('lead').textContent = LEAD[m]; $('note').textContent = NOTE[m];
+    updateStats();
+  }
+
+  // controls
+  $('n').addEventListener('input', e => { S.n = +e.target.value; $('nOut').textContent = S.n; resetA(); resetB(true); });
+  $('rate').addEventListener('input', e => { S.rate = +e.target.value; $('rateOut').textContent = S.rate; });
+  $('burst').onclick = () => { for (let i = 0; i < 1000; i++) landA(sampleMean(50)); updateStats(); };
+  $('resetA').onclick = resetA;
+  $('showBand').onchange = e => S.showBand = e.target.checked;
+  $('showCurve').onchange = e => S.showCurve = e.target.checked;
+  $('drop1').onclick = () => { S.queue += 1; };
+  $('drop20').onclick = () => { S.queue += 20; };
+  $('reveal').onchange = e => { S.reveal = e.target.checked; updateStats(); };
+  $('newCenter').onclick = () => resetB(false);
+  $('tab-a').onclick = () => setMode('a');
+  $('tab-b').onclick = () => setMode('b');
+
+  // canvas sizing
+  let Wc = 0, Hc = 0;
+  function resize() {
+    const r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    Wc = r.width; Hc = r.height; cv.width = Math.round(Wc * d); cv.height = Math.round(Hc * d);
+    ctx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  new ResizeObserver(resize).observe(cv); resize();
+
+  const padL = 22, padR = 22;
+  const px = v => padL + (v / 100) * (Wc - padL - padR);
+  let C = {};
+  function readColors() {
+    const s = getComputedStyle(document.documentElement);
+    ['ink','muted','line','drop','bar','band','ok','miss','sky-top','sky-bot','panel','bg'].forEach(k => C[k] = s.getPropertyValue('--' + k).trim());
+  }
+  readColors();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  function sky() {
+    const g = ctx.createLinearGradient(0, 0, 0, Hc);
+    g.addColorStop(0, C['sky-top']); g.addColorStop(1, C['sky-bot']);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Wc, Hc);
+  }
+  function axis(y, labels) {
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(px(0), y + .5); ctx.lineTo(px(100), y + .5); ctx.stroke();
+    ctx.fillStyle = C.muted; ctx.font = '11px ' + getComputedStyle(document.body).getPropertyValue('--f-num');
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (let v = 0; v <= 100; v += 10) {
+      const x = px(v); ctx.beginPath(); ctx.moveTo(x + .5, y); ctx.lineTo(x + .5, y + (v % 50 ? 4 : 7)); ctx.stroke();
+      if (labels && v % 25 === 0) ctx.fillText(v, x, y + 9);
+    }
+  }
+  function ball(x, y, r) { ctx.fillStyle = C.drop; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+  function emitter(c, hidden) {
+    const y = 26;
+    if (hidden) {
+      ctx.fillStyle = C.muted; ctx.globalAlpha = .18; ctx.fillRect(px(0), y - 10, px(100) - px(0), 20); ctx.globalAlpha = 1;
+      ctx.fillStyle = C.muted; ctx.font = '12px ' + getComputedStyle(document.body).fontFamily; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('どこかから降っている（中心は隠れている）', (px(0) + px(100)) / 2, y);
+    } else {
+      ctx.strokeStyle = C.drop; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(px(c - W1 / 2), y); ctx.lineTo(px(c + W1 / 2), y); ctx.stroke();
+      ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(px(c), y - 7); ctx.lineTo(px(c), y + 7); ctx.stroke();
+      ctx.fillStyle = C.muted; ctx.font = '11px ' + getComputedStyle(document.body).fontFamily; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillText('乱数の範囲（幅70）', px(c + W1 / 2) + 8 > Wc - 120 ? px(c - W1 / 2) : px(c + W1 / 2) + 8, y - (px(c + W1 / 2) + 8 > Wc - 120 ? 16 : 0));
+    }
+  }
+  const npdf = (x, m, s) => Math.exp(-0.5 * ((x - m) / s) ** 2) / (s * Math.sqrt(2 * Math.PI));
+
+  function drawA(dt) {
+    sky(); emitter(50, false);
+    const base = Hc - 30, maxH = Hc * 0.58;
+    const maxCount = Math.max(...S.bins), peakExp = S.N * BW * npdf(50, 50, sig());
+    const scale = maxH / Math.max(8, maxCount, S.showCurve ? peakExp : 0);
+    if (S.showBand) {
+      const a = px(50 - 2 * sig()), b = px(50 + 2 * sig());
+      ctx.fillStyle = C.band; ctx.globalAlpha = .13; ctx.fillRect(a, 40, b - a, base - 40); ctx.globalAlpha = 1;
+      ctx.strokeStyle = C.band; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2;
+      [a, b].forEach(x => { ctx.beginPath(); ctx.moveTo(x, 40); ctx.lineTo(x, base); ctx.stroke(); });
+      ctx.setLineDash([]);
+      ctx.fillStyle = C.band; ctx.font = '12px ' + getComputedStyle(document.body).fontFamily; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('50 ± 2σ/√n', (a + b) / 2, 56);
+    }
+    // bars
+    const bw = (px(100) - px(0)) / NB;
+    ctx.fillStyle = C.bar;
+    S.bins.forEach((c, i) => { if (c) { const h = c * scale; ctx.fillRect(px(i * BW) + 1, base - h, bw - 2, h); } });
+    if (S.showCurve && S.N > 0) {
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath();
+      for (let v = 0; v <= 100; v += .5) { const y = base - S.N * BW * npdf(v, 50, sig()) * scale; v ? ctx.lineTo(px(v), y) : ctx.moveTo(px(v), y); }
+      ctx.stroke();
+    }
+    axis(base, true);
+    // spawn & fall
+    S.acc += S.rate * dt;
+    while (S.acc >= 1) { S.acc -= 1; const x = sampleMean(50); if (reduce) landA(x); else S.drops.push({ x, y: 30, v: 60 }); }
+    const keep = [];
+    for (const d of S.drops) {
+      d.v += 900 * dt; d.y += d.v * dt;
+      const b = Math.min(NB - 1, Math.max(0, Math.floor(d.x / BW)));
+      const target = base - S.bins[b] * scale - 4;
+      if (d.y >= target) landA(d.x); else { ball(px(d.x), d.y, 4); keep.push(d); }
+    }
+    if (keep.length !== S.drops.length) updateStats();
+    S.drops = keep;
+  }
+
+  function drawB(dt) {
+    sky(); emitter(S.c, !S.reveal);
+    const landY = Math.round(Hc * 0.36);
+    axis(landY, true);
+    // queue → drops
+    S.qAcc += dt;
+    if (S.queue > 0 && S.qAcc > 0.12) {
+      S.qAcc = 0; S.queue--; const x = sampleMean(S.c);
+      if (reduce) { landB(x); updateStats(); } else S.bdrops.push({ x, y: 30, v: 60 });
+    }
+    const keep = [];
+    for (const d of S.bdrops) {
+      d.v += 900 * dt; d.y += d.v * dt;
+      if (d.y >= landY - 4) { landB(d.x); updateStats(); } else { ball(px(d.x), d.y, 5); keep.push(d); }
+    }
+    S.bdrops = keep;
+    // intervals, newest on top
+    const top = landY + 30, rowH = 9, rows = Math.max(1, Math.floor((Hc - top - 10) / rowH));
+    const shown = S.trials.slice(-rows).reverse();
+    shown.forEach((r, i) => {
+      const y = top + i * rowH + rowH / 2;
+      const col = S.reveal ? (r.cover ? C.ok : C.miss) : C.band;
+      ctx.strokeStyle = col; ctx.lineWidth = i === 0 ? 3 : 2; ctx.globalAlpha = i === 0 ? 1 : .75;
+      ctx.beginPath(); ctx.moveTo(px(Math.max(-5, r.x - r.h)), y); ctx.lineTo(px(Math.min(105, r.x + r.h)), y); ctx.stroke();
+      ctx.fillStyle = C.drop; ctx.beginPath(); ctx.arc(px(r.x), y, i === 0 ? 3.5 : 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+    // latest landing marker on axis
+    const last = S.trials[S.trials.length - 1];
+    if (last) {
+      ball(px(last.x), landY - 5, 5);
+      ctx.strokeStyle = C.drop; ctx.globalAlpha = .5; ctx.setLineDash([2, 3]);
+      ctx.beginPath(); ctx.moveTo(px(last.x), landY); ctx.lineTo(px(last.x), top); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = C.muted; ctx.font = '12px ' + getComputedStyle(document.body).fontFamily; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText(S.trials.length ? '見積もった区間（上が最新）' : '「1個降らす」を押してください', px(0), top - 4);
+    if (S.reveal) {
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(px(S.c), 40); ctx.lineTo(px(S.c), Hc - 6); ctx.stroke();
+      ctx.fillStyle = C.ink; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('本当の中心 ' + S.c.toFixed(1), px(S.c), landY - 14);
+    }
+  }
+
+  let prev = performance.now();
+  function frame(t) {
+    const dt = Math.min(0.05, (t - prev) / 1000); prev = t;
+    if (Wc > 0) (S.mode === 'a' ? drawA : drawB)(dt);
+    requestAnimationFrame(frame);
+  }
+  // open in a working state: a sample already on the floor
+  for (let i = 0; i < 300; i++) landA(sampleMean(50));
+  setMode('a');
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>
