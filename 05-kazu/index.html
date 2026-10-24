@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>数のまとまり</title>
+<meta name="description" content="画像や音が数のまとまり（ベクトル）であることを、数を書き換えたり、足したり、何倍かしたりして確かめる教材（データサイエンスのための数学 第5回）">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: 第4回「落ちもの平均」と同じ系統。上にタブ、各タブは「さわる場所（左）」と「数の表示（右）」の2列、スマホでは縦に積む。 */
+:root{
+  --bg:#edf2f6; --panel:#ffffff; --ink:#1b2733; --muted:#596a7a; --line:#d3dde6;
+  --a:#3c6e9c; --b:#dd8417; --sum:#1f8f82; --warn:#c43f37; --sel:#7a4fc0;
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --sum:#47bfae; --warn:#ef6b62; --sel:#b394ee; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --sum:#47bfae; --warn:#ef6b62; --sel:#b394ee; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-display);font-size:1.7rem;margin:0;letter-spacing:.02em}
+.course{color:var(--muted);font-size:.85rem;letter-spacing:.06em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{font-family:var(--f-display);font-size:1.15rem;margin:0}
+h3{font-size:.95rem;margin:0;color:var(--muted);font-weight:700}
+p{margin:0}
+.note{color:var(--muted);font-size:.88rem}
+.check{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;color:var(--sel);border:1px solid currentColor;border-radius:6px;padding:0 6px;margin-right:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:8px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.btn[aria-pressed="true"]{border-color:var(--sel);box-shadow:inset 0 0 0 1px var(--sel)}
+.pen{width:26px;height:26px;border-radius:6px;border:1px solid var(--line);display:inline-block;vertical-align:middle}
+input[type=number]{font-family:var(--f-num);font-size:.95rem;width:5.5em;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--sel)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+canvas{display:block;max-width:100%;height:auto;border-radius:8px;touch-action:none}
+.imgbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:start}
+.imgbox figure{margin:0;display:flex;flex-direction:column;gap:4px}
+.imgbox canvas{width:100%;max-width:220px}
+figcaption{font-size:.85rem;color:var(--muted)}
+.matrix{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.matrix table{border-collapse:collapse;font-family:var(--f-num);font-size:11px;font-variant-numeric:tabular-nums}
+.matrix td{padding:1px 3px;text-align:right;min-width:26px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);cursor:pointer}
+.matrix td.ch{background:color-mix(in srgb,var(--sel) 22%,transparent);font-weight:700}
+.matrix td.clip{color:var(--warn);font-weight:700}
+.matrix th{font-size:10px;color:var(--muted);font-weight:400;padding:1px 3px}
+.big{font-family:var(--f-num);font-size:1.4rem}
+.warn{color:var(--warn);font-weight:700}
+.vec{font-family:var(--f-num);font-size:.85rem;overflow-x:auto;white-space:nowrap;padding:6px 8px;border:1px solid var(--line);border-radius:8px}
+.vec b{font-weight:700}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem}
+.legend span::before{content:"";display:inline-block;width:18px;height:3px;border-radius:2px;background:currentColor;vertical-align:middle;margin-right:6px}
+.rec{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:14px}
+.rec dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.92rem}
+.rec dt{color:var(--muted)}
+.rec dd{margin:0;font-family:var(--f-num)}
+.stamp{font-family:var(--f-num);font-size:.9rem;color:var(--muted)}
+footer{color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>数のまとまり</h1>
+    <span class="course">データサイエンスのための数学　第5回</span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-img" aria-selected="true" aria-controls="p-img">画像は数</button>
+    <button class="tab" role="tab" id="t-snd" aria-selected="false" aria-controls="p-snd">音は数</button>
+    <button class="tab" role="tab" id="t-rec" aria-selected="false" aria-controls="p-rec">あなたの操作の記録</button>
+  </div>
+
+  <!-- 画像は数 -->
+  <section id="p-img" role="tabpanel" aria-labelledby="t-img">
+    <div class="grid">
+      <div class="card">
+        <h2><span class="check">Check 05-1</span>数を書き換えると、絵が変わる</h2>
+        <p class="note">この画像は 16×16＝256 個の数のまとまりです。0 が黒、255 が白。下の色を選んでから、画像か右の表のマスを押してください（なぞると続けて塗れます）。</p>
+        <div class="row" role="group" aria-label="塗る数">
+          <span class="note">塗る数：</span>
+          <button class="btn pbtn" data-v="0" aria-pressed="true"><span class="pen" style="background:#000"></span> 0</button>
+          <button class="btn pbtn" data-v="128"><span class="pen" style="background:#808080"></span> 128</button>
+          <button class="btn pbtn" data-v="255"><span class="pen" style="background:#fff"></span> 255</button>
+          <label class="note" for="penv">自分で：</label><input type="number" id="penv" min="0" max="255" step="1" value="60">
+          <button class="btn" id="penset">この数で塗る</button>
+        </div>
+        <canvas id="imgc" width="384" height="384" aria-label="16×16の画像" style="width:100%;max-width:384px"></canvas>
+        <div class="row"><button class="btn" id="imgundo">1つ戻す</button><button class="btn" id="imgreset">最初の絵に戻す</button>
+          <span class="note">書き換えたマス：<b class="num" id="nedit">0</b> 個</span></div>
+      </div>
+      <div class="card">
+        <h3>この画像の数（行列として並べたもの）</h3>
+        <div class="matrix" id="mat"></div>
+        <p class="note">縦に16、横に16。表のマスと画像のマスが1対1に対応しています。書き換えたマスは色がつきます。</p>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card">
+        <h2><span class="check">Check 05-3</span>何倍かすると（スカラー倍）</h2>
+        <p class="note">256 個の数すべてに、同じ数 <i>k</i> をかけます。画面に出せるのは 0〜255 なので、255 を超えた数は 255（白）で頭打ちになります。</p>
+        <label for="kimg" class="row"><span>倍率 <i>k</i> ＝ <b class="big" id="kimgv">1.0</b></span></label>
+        <input type="range" id="kimg" min="0" max="3" step="0.1" value="1">
+        <div class="imgbox">
+          <figure><canvas id="imgc0" width="160" height="160"></canvas><figcaption>もとの画像 <i>x</i></figcaption></figure>
+          <figure><canvas id="imgck" width="160" height="160"></canvas><figcaption id="capk"><i>k</i><i>x</i>（<i>k</i>＝1.0）</figcaption></figure>
+        </div>
+        <p>255 を超えた数：<b class="num" id="nclip">0</b> 個 <span id="cliptxt" class="note"></span></p>
+      </div>
+      <div class="card">
+        <h3>かける前とかけた後（左上の4つの数）</h3>
+        <div class="vec" id="kvec"></div>
+        <p class="note">どのマスも同じ <i>k</i> 倍。だから明るさが全体で同じように変わります。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 音は数 -->
+  <section id="p-snd" role="tabpanel" aria-labelledby="t-snd" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2><span class="check">Check 05-2</span>2つの音を足す（ベクトルの和）</h2>
+        <p class="note">1秒の音は、1秒に 44100 回はかった数の並び（44100 個の数のまとまり）です。2つの音の周波数を自分で選び、足した音を聴いてみましょう。<span class="warn">音量に注意してください。</span></p>
+        <div class="row"><label for="f1" style="color:var(--a)"><b>音 a</b> の周波数（Hz）</label><input type="number" id="f1" min="100" max="1000" step="1" value="440"></div>
+        <input type="range" id="f1r" min="100" max="1000" step="1" value="440" aria-label="音aの周波数">
+        <div class="row"><label for="f2" style="color:var(--b)"><b>音 b</b> の周波数（Hz）</label><input type="number" id="f2" min="100" max="1000" step="1" value="660"></div>
+        <input type="range" id="f2r" min="100" max="1000" step="1" value="660" aria-label="音bの周波数">
+        <div class="row">
+          <button class="btn" id="pa">a を鳴らす</button><button class="btn" id="pb">b を鳴らす</button><button class="btn" id="pab"><b>a＋b</b> を鳴らす</button>
+        </div>
+        <canvas id="wav" width="640" height="300" aria-label="波形"></canvas>
+        <div class="legend"><span style="color:var(--a)">a</span><span style="color:var(--b)">b</span><span style="color:var(--sum)">a＋b</span><span class="note">最初の 0.01 秒（441 個）</span></div>
+      </div>
+      <div class="card">
+        <h3>最初の6つの数（成分）</h3>
+        <div class="vec" id="svec"></div>
+        <p class="note">a＋b は、同じ番号どうしを足したもの（成分ごとの和）。番号がずれると、別の音になってしまいます。</p>
+        <h2 style="margin-top:8px"><span class="check">Check 05-3</span>音量を何倍かする</h2>
+        <label for="kvol"><span><i>k</i>(a＋b) の <i>k</i> ＝ <b class="big" id="kvolv">1.0</b></span></label>
+        <input type="range" id="kvol" min="0" max="3" step="0.1" value="1">
+        <div class="row"><button class="btn" id="pk"><i>k</i>(a＋b) を鳴らす</button></div>
+        <canvas id="wavk" width="640" height="200" aria-label="k倍した波形"></canvas>
+        <p>1 を超えた数（スピーカーの限界）：<b class="num" id="sclip">0</b> 個 <span id="sclipt" class="note"></span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 記録 -->
+  <section id="p-rec" role="tabpanel" aria-labelledby="t-rec" hidden>
+    <div class="card">
+      <h2>あなたの操作の記録</h2>
+      <p class="note">この画面を、<b>PC の時計が写るように</b>スクリーンショットして提出します（スマホでの撮影は不可）。記録はこのブラウザの中だけに残り、どこにも送信されません。ノートブックの回答欄には、ここに出ている数を書いてください。</p>
+      <p class="stamp">最後に操作した日時：<span id="rstamp">—</span></p>
+      <div class="rec">
+        <div class="card">
+          <h3>Check 05-1　画像の数を書き換えた</h3>
+          <canvas id="r1" width="160" height="160"></canvas>
+          <dl><dt>書き換えたマス</dt><dd id="r1n">0 個</dd><dt>最近の書き換え</dt><dd id="r1l">—</dd></dl>
+        </div>
+        <div class="card">
+          <h3>Check 05-2　2つの音を足した</h3>
+          <canvas id="r2" width="320" height="140"></canvas>
+          <dl><dt>音 a</dt><dd id="r2a">—</dd><dt>音 b</dt><dd id="r2b">—</dd><dt>a＋b を鳴らした</dt><dd id="r2p">まだ</dd></dl>
+        </div>
+        <div class="card">
+          <h3>Check 05-3　何倍かした</h3>
+          <canvas id="r3" width="160" height="160"></canvas>
+          <dl><dt>画像の <i>k</i></dt><dd id="r3k">—</dd><dt>255 を超えた数</dt><dd id="r3c">—</dd><dt>音量の <i>k</i></dt><dd id="r3v">—</dd><dt>1 を超えた数</dt><dd id="r3s">—</dd></dl>
+        </div>
+      </div>
+      <div class="row"><button class="btn" id="rclear">記録を消して最初から</button></div>
+    </div>
+  </section>
+
+  <footer>画像と音はこのページの中で作っています。操作の記録はこのブラウザだけに保存され、送信されません。</footer>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const N=16, SR=44100;
+// ---------- 初期の絵（16×16、0=黒 255=白）
+function baseImage(){
+  const g=[];
+  for(let r=0;r<N;r++){g.push([]);for(let c=0;c<N;c++){
+    const dx=c-7.5, dy=r-7.5, d=Math.hypot(dx,dy);
+    let v=235;
+    if(d<7.2) v=200;
+    if(d>=6.3&&d<7.2) v=40;
+    if((r===5||r===6)&&(c===5||c===10)) v=30;
+    if(r===10&&c>=5&&c<=10) v=60;
+    if(r===9&&(c===4||c===11)) v=60;
+    g[r].push(v);}}
+  return g;
+}
+// ---------- 状態（このブラウザだけに保存）
+const KEY='dsmath05-state-v1';
+let S;
+function fresh(){return {img:baseImage(),edits:[],kimg:1,f1:440,f2:660,playedSum:false,kvol:1,touched:{img:false,snd:false,kimg:false,kvol:false},stamp:null};}
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!S.img||S.img.length!==N) S=fresh();
+function save(){S.stamp=new Date().toISOString();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+const base=baseImage();
+
+// ---------- タブ
+const tabs=[['t-img','p-img'],['t-snd','p-snd'],['t-rec','p-rec']];
+tabs.forEach(([t,p])=>$(t).addEventListener('click',()=>{
+  tabs.forEach(([t2,p2])=>{$(t2).setAttribute('aria-selected',String(t2===t));$(p2).hidden=(p2!==p);});
+  if(p==='p-rec') drawRecord(); if(p==='p-snd') drawSound();
+}));
+
+// ---------- 画像
+function drawGrid(cv,g,k=1,mark=false){
+  const ctx=cv.getContext('2d'), s=cv.width/N;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const v=Math.min(255,Math.max(0,Math.round(g[r][c]*k)));
+    ctx.fillStyle=`rgb(${v},${v},${v})`;ctx.fillRect(c*s,r*s,s,s);
+  }
+  if(mark){ctx.strokeStyle='rgba(128,128,128,.35)';ctx.lineWidth=1;
+    for(let i=0;i<=N;i++){ctx.beginPath();ctx.moveTo(i*s+.5,0);ctx.lineTo(i*s+.5,cv.height);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i*s+.5);ctx.lineTo(cv.width,i*s+.5);ctx.stroke();}
+    ctx.strokeStyle=css('--sel');ctx.lineWidth=2;
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++) if(S.img[r][c]!==base[r][c]) ctx.strokeRect(c*s+1.5,r*s+1.5,s-3,s-3);
+  }
+}
+function buildMatrix(){
+  let h='<table><tr><th></th>'+Array.from({length:N},(_,c)=>`<th>${c+1}</th>`).join('')+'</tr>';
+  for(let r=0;r<N;r++){h+=`<tr><th>${r+1}</th>`;for(let c=0;c<N;c++){
+    const v=S.img[r][c];h+=`<td data-r="${r}" data-c="${c}" class="${v!==base[r][c]?'ch':''}">${v}</td>`;}h+='</tr>';}
+  $('mat').innerHTML=h+'</table>';
+}
+let pen=0;
+document.querySelectorAll('.pbtn').forEach(b=>b.addEventListener('click',()=>{pen=+b.dataset.v;document.querySelectorAll('.pbtn').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));}));
+$('penset').addEventListener('click',()=>{let v=Math.round(+$('penv').value);if(!(v>=0&&v<=255)){v=Math.min(255,Math.max(0,v||0));$('penv').value=v;}pen=v;document.querySelectorAll('.pbtn').forEach(x=>x.setAttribute('aria-pressed','false'));});
+function paint(r,c){
+  if(r<0||c<0||r>=N||c>=N) return;
+  const old=S.img[r][c]; if(old===pen) return;
+  S.img[r][c]=pen;S.edits.push([r,c,old,pen]);S.touched.img=true;save();refreshImg();
+}
+const imgc=$('imgc');let down=false;
+function cellAt(ev){const b=imgc.getBoundingClientRect();return [Math.floor((ev.clientY-b.top)/b.height*N),Math.floor((ev.clientX-b.left)/b.width*N)];}
+imgc.addEventListener('pointerdown',ev=>{down=true;imgc.setPointerCapture(ev.pointerId);paint(...cellAt(ev));});
+imgc.addEventListener('pointermove',ev=>{if(down)paint(...cellAt(ev));});
+imgc.addEventListener('pointerup',()=>down=false);imgc.addEventListener('pointercancel',()=>down=false);
+$('mat').addEventListener('click',ev=>{const td=ev.target.closest('td');if(td)paint(+td.dataset.r,+td.dataset.c);});
+$('imgundo').addEventListener('click',()=>{const e=S.edits.pop();if(e){S.img[e[0]][e[1]]=e[2];save();refreshImg();}});
+$('imgreset').addEventListener('click',()=>{S.img=baseImage();S.edits=[];save();refreshImg();});
+function changedCount(){let n=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(S.img[r][c]!==base[r][c])n++;return n;}
+function refreshImg(){
+  drawGrid(imgc,S.img,1,true);buildMatrix();$('nedit').textContent=changedCount();refreshK();
+}
+function refreshK(){
+  const k=S.kimg;$('kimg').value=k;$('kimgv').textContent=k.toFixed(1);
+  $('capk').innerHTML=`<i>k</i><i>x</i>（<i>k</i>＝${k.toFixed(1)}）`;
+  drawGrid($('imgc0'),S.img,1);drawGrid($('imgck'),S.img,k);
+  let n=0;for(const row of S.img)for(const v of row)if(v*k>255.0001)n++;
+  $('nclip').textContent=n;
+  $('cliptxt').textContent=n?'（白で頭打ちになったマスは、もとの違いが消えています）':'';
+  const xs=[S.img[0][0],S.img[0][1],S.img[1][0],S.img[1][1]];
+  const f=v=>{const w=v*k;return w>255.0001?`<span class="warn">${(Math.round(w*10)/10)}→255</span>`:String(Math.round(w*10)/10);};
+  $('kvec').innerHTML=`<i>x</i> ＝ (${xs.join(', ')}, …)<br>${k.toFixed(1)}<i>x</i> ＝ (${xs.map(f).join(', ')}, …)`;
+}
+$('kimg').addEventListener('input',e=>{S.kimg=Math.round(+e.target.value*10)/10;S.touched.kimg=true;save();refreshK();});
+
+// ---------- 音
+function tone(f,n){const a=new Float32Array(n);for(let i=0;i<n;i++)a[i]=0.5*Math.sin(2*Math.PI*f*i/SR);return a;}
+function syncF(which){
+  const v=Math.round(Math.min(1000,Math.max(100,+$(which).value||440)));
+  S[which]=v;$(which).value=v;$(which+'r').value=v;S.touched.snd=true;save();drawSound();
+}
+['f1','f2'].forEach(w=>{$(w).addEventListener('change',()=>syncF(w));$(w+'r').addEventListener('input',e=>{$(w).value=e.target.value;syncF(w);});});
+$('kvol').addEventListener('input',e=>{S.kvol=Math.round(+e.target.value*10)/10;S.touched.kvol=true;save();drawSound();});
+function plot(cv,series,yr=1.6){
+  const ctx=cv.getContext('2d'),W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle=css('--line');ctx.lineWidth=1;
+  [-1,0,1].forEach(y=>{const py=H/2-y/yr*H/2;ctx.beginPath();ctx.setLineDash(y?[4,4]:[]);ctx.moveTo(0,py);ctx.lineTo(W,py);ctx.stroke();});
+  ctx.setLineDash([]);ctx.fillStyle=css('--muted');ctx.font='12px sans-serif';ctx.fillText('+1',4,H/2-H/2/yr-3);ctx.fillText('−1',4,H/2+H/2/yr+13);
+  series.forEach(([arr,col,w,clip])=>{ctx.strokeStyle=col;ctx.lineWidth=w;ctx.beginPath();
+    for(let i=0;i<arr.length;i++){let v=arr[i];if(clip)v=Math.max(-1,Math.min(1,v));const x=i/(arr.length-1)*W,y=H/2-v/yr*H/2;i?ctx.lineTo(x,y):ctx.moveTo(x,y);}ctx.stroke();});
+}
+function drawSound(){
+  $('f1').value=S.f1;$('f1r').value=S.f1;$('f2').value=S.f2;$('f2r').value=S.f2;$('kvol').value=S.kvol;$('kvolv').textContent=S.kvol.toFixed(1);
+  const n=441,a=tone(S.f1,n),b=tone(S.f2,n),s=a.map((v,i)=>v+b[i]),ks=s.map(v=>v*S.kvol);
+  plot($('wav'),[[a,css('--a'),1.5],[b,css('--b'),1.5],[s,css('--sum'),2.6]]);
+  plot($('wavk'),[[ks,css('--sum'),2.4,true]],2.2);
+  const f=v=>(Math.round(v*1000)/1000).toFixed(3);
+  $('svec').innerHTML=`<span style="color:var(--a)">a</span> ＝ (${Array.from(a.slice(0,6)).map(f).join(', ')}, …)<br>`+
+    `<span style="color:var(--b)">b</span> ＝ (${Array.from(b.slice(0,6)).map(f).join(', ')}, …)<br>`+
+    `<b style="color:var(--sum)">a＋b</b> ＝ (${Array.from(s.slice(0,6)).map(f).join(', ')}, …)`;
+  // 1秒ぶんで 1 を超えた数
+  const A=tone(S.f1,SR),B=tone(S.f2,SR);let c=0;for(let i=0;i<SR;i++)if(Math.abs((A[i]+B[i])*S.kvol)>1)c++;
+  $('sclip').textContent=c;$('sclipt').textContent=c?'（1 で切られた部分が音割れになります）':'';
+  S._sclip=c;
+}
+let actx=null;
+function play(arr){
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();}catch(e){alertNo();return;}
+  const buf=actx.createBuffer(1,arr.length,SR),d=buf.getChannelData(0);
+  for(let i=0;i<arr.length;i++){let v=Math.max(-1,Math.min(1,arr[i]));const fade=Math.min(1,i/400,(arr.length-i)/400);d[i]=v*fade*0.5;}
+  const src=actx.createBufferSource();src.buffer=buf;src.connect(actx.destination);src.start();
+}
+function alertNo(){$('sclipt').textContent='このブラウザでは音を鳴らせません。';}
+$('pa').addEventListener('click',()=>play(tone(S.f1,SR)));
+$('pb').addEventListener('click',()=>play(tone(S.f2,SR)));
+$('pab').addEventListener('click',()=>{const A=tone(S.f1,SR),B=tone(S.f2,SR);play(A.map((v,i)=>v+B[i]));S.playedSum=true;S.touched.snd=true;save();});
+$('pk').addEventListener('click',()=>{const A=tone(S.f1,SR),B=tone(S.f2,SR);play(A.map((v,i)=>(v+B[i])*S.kvol));S.touched.kvol=true;save();});
+
+// ---------- 記録
+function fmt(iso){if(!iso)return '—';const d=new Date(iso),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+function drawRecord(){
+  $('rstamp').textContent=fmt(S.stamp);
+  drawGrid($('r1'),S.img,1,true);
+  $('r1n').textContent=changedCount()+' 個';
+  const last=S.edits.slice(-3).map(([r,c,o,n])=>`${r+1}行${c+1}列：${o}→${n}`);
+  $('r1l').innerHTML=last.length?last.join('<br>'):'—';
+  const n=441,a=tone(S.f1,n),b=tone(S.f2,n);
+  plot($('r2'),[[a,css('--a'),1.2],[b,css('--b'),1.2],[a.map((v,i)=>v+b[i]),css('--sum'),2.2]]);
+  $('r2a').textContent=S.touched.snd?S.f1+' Hz':'（まだ操作していません）';
+  $('r2b').textContent=S.touched.snd?S.f2+' Hz':'（まだ操作していません）';
+  $('r2p').textContent=S.playedSum?'鳴らした':'まだ';
+  drawGrid($('r3'),S.img,S.kimg);
+  let nc=0;for(const row of S.img)for(const v of row)if(v*S.kimg>255.0001)nc++;
+  $('r3k').textContent=S.touched.kimg?S.kimg.toFixed(1):'（まだ操作していません）';
+  $('r3c').textContent=S.touched.kimg?nc+' 個':'—';
+  $('r3v').textContent=S.touched.kvol?S.kvol.toFixed(1):'（まだ操作していません）';
+  if(S.touched.kvol){const A=tone(S.f1,SR),B=tone(S.f2,SR);let c=0;for(let i=0;i<SR;i++)if(Math.abs((A[i]+B[i])*S.kvol)>1)c++;$('r3s').textContent=c+' 個';}else $('r3s').textContent='—';
+}
+$('rclear').addEventListener('click',()=>{S=fresh();try{localStorage.removeItem(KEY)}catch(e){}refreshImg();drawSound();drawRecord();});
+
+// テーマ切り替えで描き直す
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{refreshImg();drawSound();drawRecord();});}catch(e){}
+refreshImg();drawSound();
+})();
+</script>
+</body>
+</html>
