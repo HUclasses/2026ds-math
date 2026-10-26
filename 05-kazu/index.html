@@ -179,7 +179,7 @@ footer{color:var(--muted);font-size:.8rem}
         </div>
         <h3>和音</h3>
         <div class="row" id="chordbtns" role="group" aria-label="和音"></div>
-        <h3>コード進行（ハ長調で鳴らす）</h3>
+        <h3>コード進行（和音を順に鳴らす。ハ長調）</h3>
         <div class="prog" id="progbtns"></div>
       </div>
       <div class="card">
@@ -359,20 +359,21 @@ const NOTE=['ド','ド♯','レ','ミ♭','ミ','ファ','ファ♯','ソ','ソ�
 const hz=m=>440*Math.pow(2,(m-69)/12);
 const CHORDS={C:[60,64,67],Dm:[62,65,69],Em:[64,67,71],F:[65,69,72],G:[67,71,74],Am:[69,72,76],
   C7:[60,64,67,70],G7:[67,71,74,77],E7:[64,68,71,74],FM7:[65,69,72,76],Am7:[69,72,76,79],Gm7:[67,70,74,77],Em7:[64,67,71,74]};
+const VOICE={G7inv:[59,62,65,67]};   // シ・レ・ファ・ソ（起立・礼・着席の「礼」でよく弾かれる形）
+const NAME=k=>k==='G7inv'?'G7':k;
+const notesOf=k=>CHORDS[k]||VOICE[k];
 const PROGS=[
-  {name:'丸サ進行',ex:'例：椎名林檎「丸の内サディスティック」（ここではハ長調に直して鳴らす）',seq:[['FM7',1],['E7',1],['Am7',1],['Gm7',.5],['C7',.5]]},
-  {name:'王道進行',ex:'J-POP でとても多く使われる進行',seq:[['FM7',1],['G7',1],['Em7',1],['Am',1]]},
-  {name:'カノン進行',ex:'例：パッヘルベル「カノン」',seq:[['C',.8],['G',.8],['Am',.8],['Em',.8],['F',.8],['C',.8],['F',.8],['G',.8]]},
-  {name:'小室進行',ex:'1990年代の J-POP で多く使われた進行',seq:[['Am',1],['F',1],['G',1],['C',1]]},
+  {name:'丸サ進行',ex:'例：椎名林檎「丸の内サディスティック」、YOASOBI「夜に駆ける」の冒頭（ここではハ長調に直して鳴らす）',seq:[['FM7',1],['E7',1],['Am7',1],['Gm7',.5],['C7',.5]]},
+  {name:'起立・礼・着席',ex:'学校でピアノが弾く、あの和音（ドミソ → シレファソ → ドミソ）',seq:[['C',1.2,'起立'],['G7inv',1.2,'礼'],['C',1.6,'着席']]},
 ];
-let cmode='raw',ctimers=[];
+let cmode='raw',ctimers=[],ccur=null,cprogName='';
 function chordWave(name,n){
-  const ms=CHORDS[name],out=new Float32Array(n),div=cmode==='avg'?ms.length:1;
+  const ms=notesOf(name),out=new Float32Array(n),div=cmode==='avg'?ms.length:1;
   ms.forEach(m=>{const t=tone(hz(m),n);for(let i=0;i<n;i++)out[i]+=t[i]/div;});return out;
 }
 function showChord(name,progName){
-  const ms=CHORDS[name],nn=ms.length;
-  $('cname').textContent=name;$('cprog').textContent=progName?'（'+progName+'）':'';
+  const ms=notesOf(name),nn=ms.length;ccur=name;cprogName=progName||'';
+  $('cname').textContent=NAME(name);$('cprog').textContent=progName?'（'+progName+'）':'';
   const letters='abcdefg'.slice(0,nn).split('');
   const lines=ms.map((m,i)=>`<i>${letters[i]}</i>：${NOTE[m%12]}　${hz(m).toFixed(1)} Hz`);
   const sum=letters.map(l=>`<i>${l}</i>`).join('＋');
@@ -406,11 +407,11 @@ function playProg(k){
 $('chordbtns').innerHTML=Object.keys(CHORDS).map(c=>`<button class="btn" data-c="${c}">${c}</button>`).join('');
 $('chordbtns').addEventListener('click',e=>{const b=e.target.closest('button');if(b)playChord(b.dataset.c);});
 $('progbtns').innerHTML=PROGS.map((P,k)=>`<div class="item"><div class="head"><button class="btn" data-k="${k}">▶ ${P.name}</button>`+
-  `<span class="seq">${P.seq.map(([c])=>`<span class="chip" data-p="${k}">${c}</span>`).join('')}</span></div><span class="ex">${P.ex}</span></div>`).join('');
+  `<span class="seq">${P.seq.map(([c,d,l])=>`<span class="chip" data-p="${k}">${l?l+'　':''}${NAME(c)}</span>`).join('')}</span></div><span class="ex">${P.ex}</span></div>`).join('');
 $('progbtns').addEventListener('click',e=>{const b=e.target.closest('button');if(b)playProg(+b.dataset.k);});
 document.querySelectorAll('.cmode').forEach(b=>b.addEventListener('click',()=>{
   cmode=b.dataset.m;document.querySelectorAll('.cmode').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
-  const cur=$('cname').textContent;if(CHORDS[cur])showChord(cur,$('cprog').textContent.replace(/[（）]/g,''));
+  if(ccur)showChord(ccur,cprogName);
 }));
 
 // ---------- 記録
