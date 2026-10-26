@@ -73,6 +73,15 @@ figcaption{font-size:.85rem;color:var(--muted)}
 .rec dd{margin:0;font-family:var(--f-num)}
 .stamp{font-family:var(--f-num);font-size:.9rem;color:var(--muted)}
 footer{color:var(--muted);font-size:.8rem}
+.omake{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;color:var(--b);border:1px solid currentColor;border-radius:6px;padding:0 6px;margin-right:6px}
+#chordbtns .btn{font-family:var(--f-num);min-width:3.6em}
+#chordbtns .btn.on,.prog .chip.on{background:color-mix(in srgb,var(--sum) 18%,var(--panel));border-color:var(--sum)}
+.prog{display:flex;flex-direction:column;gap:8px}
+.prog .item{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
+.prog .head{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.prog .seq{display:flex;flex-wrap:wrap;gap:4px;font-family:var(--f-num);font-size:.9rem}
+.prog .chip{border:1px solid var(--line);border-radius:6px;padding:0 6px}
+.prog .ex{font-size:.8rem;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -157,6 +166,29 @@ footer{color:var(--muted);font-size:.8rem}
         <div class="row"><button class="btn" id="pk"><i>k</i>(a＋b) を鳴らす</button></div>
         <canvas id="wavk" width="640" height="200" aria-label="k倍した波形"></canvas>
         <p>1 を超えた数（スピーカーの限界）：<b class="num" id="sclip">0</b> 個 <span id="sclipt" class="note"></span></p>
+      </div>
+    </div>
+    <div class="grid" style="margin-top:14px">
+      <div class="card">
+        <h2><span class="omake">おまけ</span>和音は、3つ以上の音の和</h2>
+        <p class="note">和音（コード）は、いくつかの音を同時に鳴らしたもの。数のまとまりとしては、3つや4つのベクトルの和です。ボタンを押すと鳴ります（ここは Check にも記録にも入りません）。<span class="warn">音量に注意してください。</span></p>
+        <div class="row" role="group" aria-label="足し方">
+          <span class="note">足し方：</span>
+          <button class="btn cmode" data-m="raw" aria-pressed="true">そのまま足す</button>
+          <button class="btn cmode" data-m="avg">足して、音の数で割る</button>
+        </div>
+        <h3>和音</h3>
+        <div class="row" id="chordbtns" role="group" aria-label="和音"></div>
+        <h3>コード進行（ハ長調で鳴らす）</h3>
+        <div class="prog" id="progbtns"></div>
+      </div>
+      <div class="card">
+        <h3>いま鳴らした和音</h3>
+        <p><b class="big" id="cname">—</b> <span class="note" id="cprog"></span></p>
+        <div class="vec" id="cvec">ボタンを押すと、ここに音の周波数と式が出ます。</div>
+        <canvas id="wavc" width="640" height="220" aria-label="和音の波形"></canvas>
+        <p>1 を超えた数（1秒あたり）：<b class="num" id="cclip">—</b> <span id="ccliptxt" class="note"></span></p>
+        <p class="note">音の数で割るのは、すべての数に同じ 1/<i>n</i> をかけるスカラー倍。足して個数で割るので、平均顔と同じ計算です。</p>
       </div>
     </div>
   </section>
@@ -320,6 +352,66 @@ $('pa').addEventListener('click',()=>play(tone(S.f1,SR)));
 $('pb').addEventListener('click',()=>play(tone(S.f2,SR)));
 $('pab').addEventListener('click',()=>{const A=tone(S.f1,SR),B=tone(S.f2,SR);play(A.map((v,i)=>v+B[i]));S.playedSum=true;S.touched.snd=true;save();});
 $('pk').addEventListener('click',()=>{const A=tone(S.f1,SR),B=tone(S.f2,SR);play(A.map((v,i)=>(v+B[i])*S.kvol));S.touched.kvol=true;save();});
+
+// ---------- おまけ：和音とコード進行（記録には残さない）
+// 平均律：ラ（A4, 番号 69）＝ 440 Hz から、半音ごとに 2 の 12 乗根倍
+const NOTE=['ド','ド♯','レ','ミ♭','ミ','ファ','ファ♯','ソ','ソ♯','ラ','シ♭','シ'];
+const hz=m=>440*Math.pow(2,(m-69)/12);
+const CHORDS={C:[60,64,67],Dm:[62,65,69],Em:[64,67,71],F:[65,69,72],G:[67,71,74],Am:[69,72,76],
+  C7:[60,64,67,70],G7:[67,71,74,77],E7:[64,68,71,74],FM7:[65,69,72,76],Am7:[69,72,76,79],Gm7:[67,70,74,77],Em7:[64,67,71,74]};
+const PROGS=[
+  {name:'丸サ進行',ex:'例：椎名林檎「丸の内サディスティック」（ここではハ長調に直して鳴らす）',seq:[['FM7',1],['E7',1],['Am7',1],['Gm7',.5],['C7',.5]]},
+  {name:'王道進行',ex:'J-POP でとても多く使われる進行',seq:[['FM7',1],['G7',1],['Em7',1],['Am',1]]},
+  {name:'カノン進行',ex:'例：パッヘルベル「カノン」',seq:[['C',.8],['G',.8],['Am',.8],['Em',.8],['F',.8],['C',.8],['F',.8],['G',.8]]},
+  {name:'小室進行',ex:'1990年代の J-POP で多く使われた進行',seq:[['Am',1],['F',1],['G',1],['C',1]]},
+];
+let cmode='raw',ctimers=[];
+function chordWave(name,n){
+  const ms=CHORDS[name],out=new Float32Array(n),div=cmode==='avg'?ms.length:1;
+  ms.forEach(m=>{const t=tone(hz(m),n);for(let i=0;i<n;i++)out[i]+=t[i]/div;});return out;
+}
+function showChord(name,progName){
+  const ms=CHORDS[name],nn=ms.length;
+  $('cname').textContent=name;$('cprog').textContent=progName?'（'+progName+'）':'';
+  const letters='abcdefg'.slice(0,nn).split('');
+  const lines=ms.map((m,i)=>`<i>${letters[i]}</i>：${NOTE[m%12]}　${hz(m).toFixed(1)} Hz`);
+  const sum=letters.map(l=>`<i>${l}</i>`).join('＋');
+  lines.push(cmode==='avg'?`鳴らした音 ＝ (1/${nn})(${sum})　（${nn} 個の音を足して ${nn} で割る）`:`鳴らした音 ＝ ${sum}　（${nn} 個の音をそのまま足す）`);
+  $('cvec').innerHTML=lines.join('<br>');
+  plot($('wavc'),[[chordWave(name,441),css('--sum'),2.2,true]],2.2);
+  const w=chordWave(name,SR);let c=0;for(let i=0;i<SR;i++)if(Math.abs(w[i])>1)c++;
+  $('cclip').textContent=c+' 個';
+  $('ccliptxt').textContent=c?'（1 で切られて音が割れます。「音の数で割る」を選ぶと割れません）':'';
+  document.querySelectorAll('#chordbtns .btn').forEach(b=>b.classList.toggle('on',b.dataset.c===name));
+}
+function stopProg(){ctimers.forEach(clearTimeout);ctimers=[];document.querySelectorAll('.prog .chip').forEach(c=>c.classList.remove('on'));}
+function playChord(name){stopProg();showChord(name);play(chordWave(name,Math.round(SR*1.2)));}
+function playProg(k){
+  stopProg();const P=PROGS[k];
+  let segs=[],t=0;
+  P.seq.forEach(([c,d],j)=>{
+    const n=Math.round(SR*d),w=chordWave(c,n);
+    for(let i=0;i<n;i++)w[i]*=Math.min(1,i/300,(n-i)/300);   // つなぎ目のプチッという音を防ぐ
+    segs.push(w);
+    ctimers.push(setTimeout(()=>{
+      document.querySelectorAll(`.prog .chip[data-p="${k}"]`).forEach((ch,jj)=>ch.classList.toggle('on',jj===j));
+      showChord(c,P.name);
+    },t*1000));
+    t+=d;
+  });
+  ctimers.push(setTimeout(()=>document.querySelectorAll('.prog .chip').forEach(c=>c.classList.remove('on')),t*1000));
+  const all=new Float32Array(segs.reduce((s,a)=>s+a.length,0));let o=0;segs.forEach(a=>{all.set(a,o);o+=a.length;});
+  play(all);
+}
+$('chordbtns').innerHTML=Object.keys(CHORDS).map(c=>`<button class="btn" data-c="${c}">${c}</button>`).join('');
+$('chordbtns').addEventListener('click',e=>{const b=e.target.closest('button');if(b)playChord(b.dataset.c);});
+$('progbtns').innerHTML=PROGS.map((P,k)=>`<div class="item"><div class="head"><button class="btn" data-k="${k}">▶ ${P.name}</button>`+
+  `<span class="seq">${P.seq.map(([c])=>`<span class="chip" data-p="${k}">${c}</span>`).join('')}</span></div><span class="ex">${P.ex}</span></div>`).join('');
+$('progbtns').addEventListener('click',e=>{const b=e.target.closest('button');if(b)playProg(+b.dataset.k);});
+document.querySelectorAll('.cmode').forEach(b=>b.addEventListener('click',()=>{
+  cmode=b.dataset.m;document.querySelectorAll('.cmode').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  const cur=$('cname').textContent;if(CHORDS[cur])showChord(cur,$('cprog').textContent.replace(/[（）]/g,''));
+}));
 
 // ---------- 記録
 function fmt(iso){if(!iso)return '—';const d=new Date(iso),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
