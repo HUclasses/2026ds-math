@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>配分を比べる</title>
+<meta name="description" content="家計の配分をコサイン類似度で比べる、高次元のランダムなベクトル、ずらすと0になる様子を確かめる教材（データサイエンスのための数学 第6回）">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* 第5回「数のまとまり」と同じ系統。上にタブ、各タブは「さわる場所（左）」と「数の表示（右）」の2列、スマホでは縦に積む。 */
+:root{
+  --bg:#edf2f6; --panel:#ffffff; --ink:#1b2733; --muted:#596a7a; --line:#d3dde6;
+  --a:#3c6e9c; --b:#dd8417; --c:#1f8f82; --warn:#c43f37; --sel:#7a4fc0; --pos:#3e9a5a; --neg:#c9483f;
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --c:#47bfae; --warn:#ef6b62; --sel:#b394ee; --pos:#5cc27b; --neg:#ef6b62; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --c:#47bfae; --warn:#ef6b62; --sel:#b394ee; --pos:#5cc27b; --neg:#ef6b62; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-display);font-size:1.7rem;margin:0;letter-spacing:.02em}
+.course{color:var(--muted);font-size:.85rem;letter-spacing:.06em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{font-family:var(--f-display);font-size:1.15rem;margin:0}
+h3{font-size:.95rem;margin:0;color:var(--muted);font-weight:700}
+p{margin:0}
+.note{color:var(--muted);font-size:.88rem}
+.check{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;color:var(--sel);border:1px solid currentColor;border-radius:6px;padding:0 6px;margin-right:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:8px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.btn[aria-pressed="true"]{border-color:var(--sel);box-shadow:inset 0 0 0 1px var(--sel)}
+select{font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--sel)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+canvas{display:block;max-width:100%;height:auto;border-radius:8px}
+.big{font-family:var(--f-num);font-size:1.6rem}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:baseline}
+.kv dt{color:var(--muted);font-size:.9rem}
+.kv dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hl{color:var(--sel);font-weight:700}
+.fict{font-size:.8rem;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem}
+.legend span::before{content:"";display:inline-block;width:14px;height:10px;border-radius:2px;background:currentColor;vertical-align:middle;margin-right:6px}
+.rec{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.rec dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.92rem}
+.rec dt{color:var(--muted)}
+.rec dd{margin:0;font-family:var(--f-num)}
+.stamp{font-family:var(--f-num);font-size:.9rem;color:var(--muted)}
+table.t{border-collapse:collapse;font-size:.85rem}
+table.t td,table.t th{border-bottom:1px solid var(--line);padding:2px 8px;text-align:right}
+table.t th{color:var(--muted);font-weight:400}
+table.t td:first-child,table.t th:first-child{text-align:left}
+footer{color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>配分を比べる</h1>
+    <span class="course">データサイエンスのための数学　第6回</span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-cmp" aria-selected="true" aria-controls="p-cmp">配分を比べる</button>
+    <button class="tab" role="tab" id="t-hd" aria-selected="false" aria-controls="p-hd">高次元</button>
+    <button class="tab" role="tab" id="t-sh" aria-selected="false" aria-controls="p-sh">ずらす</button>
+    <button class="tab" role="tab" id="t-rec" aria-selected="false" aria-controls="p-rec">あなたの操作の記録</button>
+  </div>
+
+  <!-- 配分を比べる -->
+  <section id="p-cmp" role="tabpanel" aria-labelledby="t-cmp">
+    <div class="grid">
+      <div class="card">
+        <h2><span class="check">Check 06-1</span>2つの家計の配分を比べる</h2>
+        <div class="row">
+          <label for="selx">比べる2つ：</label>
+          <select id="selx"></select><span>と</span><select id="sely"></select>
+        </div>
+        <canvas id="bars" width="560" height="380" aria-label="2つの家計の構成比の棒グラフ"></canvas>
+        <div class="legend"><span id="lgx" style="color:var(--a)"></span><span id="lgy" style="color:var(--b)"></span></div>
+        <p class="fict">A・B：総務省統計局「家計調査（家計収支編）」二人以上の世帯（1か月、円）。C：説明用に作った大学生ひとり暮らしの1か月（架空のデータ）。</p>
+      </div>
+      <div class="card">
+        <h3>右側（<span id="ynm"></span>）の金額を変える</h3>
+        <div class="row"><label for="kk">全部を <i>k</i> 倍：</label><b class="num" id="kv">1.0</b></div>
+        <input type="range" id="kk" min="0.5" max="5" step="0.1" value="1" aria-label="全部を k 倍">
+        <div class="row"><label for="item">費目：</label><select id="item"></select><span class="num" id="itemv"></span></div>
+        <input type="range" id="itemr" min="0" max="3" step="0.05" value="1" aria-label="選んだ費目の金額の倍率">
+        <p class="note">上は全部の費目をまとめて <i>k</i> 倍、下は1つの費目だけを 0〜3 倍にします。</p>
+        <button class="btn" id="cmpreset">金額をもとに戻す</button>
+        <dl class="kv">
+          <dt>かけて足したもの（内積）</dt><dd id="dot"></dd>
+          <dt>左の大きさ（ノルム）</dt><dd id="nx"></dd>
+          <dt>右の大きさ（ノルム）</dt><dd id="ny"></dd>
+          <dt>大きさ × 大きさ</dt><dd id="nxy"></dd>
+          <dt class="hl">コサイン類似度</dt><dd class="big hl" id="cos"></dd>
+        </dl>
+        <p class="note">コサイン類似度 ＝（かけて足したもの）÷（大きさ × 大きさ）。金額は千円単位で計算しています。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 高次元 -->
+  <section id="p-hd" role="tabpanel" aria-labelledby="t-hd" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2>ランダムな2つのベクトルのコサイン類似度</h2>
+        <p class="note">各成分をランダムに決めたベクトルを2本作り、コサイン類似度を計算します。これを 2000 組くり返して、ヒストグラムにします。</p>
+        <div class="row"><label for="dim">次元：</label><b class="num" id="dimv">2</b></div>
+        <input type="range" id="dim" min="0" max="7" step="1" value="0" aria-label="次元">
+        <canvas id="hist" width="560" height="300" aria-label="コサイン類似度のヒストグラム"></canvas>
+      </div>
+      <div class="card">
+        <dl class="kv">
+          <dt>次元</dt><dd id="hd1"></dd>
+          <dt>−0.1〜0.1 に入った割合</dt><dd class="big" id="hd2"></dd>
+          <dt>いちばん大きい値</dt><dd id="hd3"></dd>
+        </dl>
+        <p class="note">次元を上げると、ほとんどの組が 0 の近く（ほぼ直交）に集まります。だから、数百次元の埋め込みでは、コサイン類似度が 0.3 程度でも「似ている」と言えます。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ずらす -->
+  <section id="p-sh" role="tabpanel" aria-labelledby="t-sh" hidden>
+    <div class="grid">
+      <div class="card">
+        <h2><span class="check">Check 06-3</span>ずらすと 0 になる</h2>
+        <p class="note">2つの店のランチの客が来る時間帯の配分です（架空のデータ）。店A は 11時台と12時台に半分ずつ。店B は、店A と同じ配分を何時間かずらしたものです。</p>
+        <div class="row"><button class="btn" id="shm">◀ 1時間もどす</button><button class="btn" id="shp">1時間ずらす ▶</button>
+          <span>ずらした時間：<b class="num" id="shv">0</b> 時間</span></div>
+        <canvas id="shc" width="560" height="380" aria-label="店Aと店Bの配分と、時間帯ごとにかけたもの"></canvas>
+        <div class="legend"><span style="color:var(--a)">店A</span><span style="color:var(--b)">店B</span><span style="color:var(--pos)">時間帯ごとにかけたもの</span></div>
+      </div>
+      <div class="card">
+        <dl class="kv">
+          <dt>かけて足したもの（内積）</dt><dd id="sdot"></dd>
+          <dt class="hl">コサイン類似度</dt><dd class="big hl" id="scos"></dd>
+        </dl>
+        <p class="note">内積は、同じ時間帯（同じ番号の成分）どうしをかけて足したものです。重なる時間帯がなくなると、どれだけずらしても 0 のままです。</p>
+        <h3>試した結果</h3>
+        <table class="t" id="shtab"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 記録 -->
+  <section id="p-rec" role="tabpanel" aria-labelledby="t-rec" hidden>
+    <div class="card">
+      <h2><span class="check">Check 06-4</span>あなたの操作の記録</h2>
+      <p class="note">この画面を、<b>PC の時計が写るように</b>スクリーンショットして提出します（スマホでの撮影は不可）。記録はこのブラウザの中だけに残り、どこにも送信されません。ノートブックの回答欄には、ここに出ている値を書いてください。</p>
+      <p class="stamp">最後に操作した日時：<span id="rstamp">—</span></p>
+      <div class="rec">
+        <div class="card">
+          <h3>Check 06-1　配分を比べた</h3>
+          <dl>
+            <dt>A と B</dt><dd id="r1ab">—</dd>
+            <dt>A と C</dt><dd id="r1ac">—</dd>
+            <dt>B と C</dt><dd id="r1bc">—</dd>
+            <dt>最後に試した <i>k</i></dt><dd id="r1k">—</dd>
+            <dt>そのときの値</dt><dd id="r1kc">—</dd>
+          </dl>
+          <p class="note">A・B・C の値は、金額を変える前（もとの金額）のコサイン類似度です。</p>
+        </div>
+        <div class="card">
+          <h3>Check 06-3　ずらした</h3>
+          <dl><dt>いちばん大きくずらした</dt><dd id="r3m">—</dd></dl>
+          <canvas id="r3c" width="320" height="140"></canvas>
+          <table class="t" id="r3t"></table>
+        </div>
+      </div>
+      <div class="row"><button class="btn" id="rclear">記録を消して最初から</button></div>
+    </div>
+  </section>
+  <footer>家計調査：総務省統計局「家計調査（家計収支編）」長期時系列表 表番号2、2026年2月・8月（e-Stat、2026年10月24日取得）。</footer>
+</div>
+
+<script>
+(()=>{
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const ITEMS=["食料","住居","光熱・水道","家具・家事用品","被服及び履物","保健医療","交通・通信","教育","教養娯楽","その他の消費支出"];
+const DATA={
+  A:{name:"A：全国 2026年2月",v:[83842,18630,30118,9503,7340,15155,40883,8022,30890,45008]},
+  B:{name:"B：全国 2026年8月",v:[97037,18244,19835,13749,7497,15658,42956,6229,34681,55092]},
+  C:{name:"C：大学生ひとり暮らし（架空）",v:[35000,50000,8000,2000,4000,2000,10000,0,12000,7000]},
+};
+const dot=(x,y)=>x.reduce((s,v,i)=>s+v*y[i],0);
+const norm=x=>Math.sqrt(dot(x,x));
+const cosv=(x,y)=>{const n=norm(x)*norm(y);return n>0?dot(x,y)/n:0;};
+const f2=v=>v.toFixed(2), f3=v=>v.toFixed(3);
+const nf=v=>v.toLocaleString('ja-JP',{maximumFractionDigits:1});
+
+// ---------- 状態（このブラウザの中だけに保存）
+const KEY='ds06-ruiji-v1';
+function fresh(){return {pairs:{},k:null,kcos:null,kpair:null,shifts:{},stamp:null};}
+let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!S.pairs)S=fresh();
+function save(){S.stamp=new Date().toISOString();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+// ---------- タブ
+const tabs=[['t-cmp','p-cmp'],['t-hd','p-hd'],['t-sh','p-sh'],['t-rec','p-rec']];
+tabs.forEach(([t,p])=>$(t).addEventListener('click',()=>{
+  tabs.forEach(([t2,p2])=>{$(t2).setAttribute('aria-selected',String(t2===t));$(p2).hidden=(p2!==p);});
+  if(p==='p-hd')drawHist(); if(p==='p-sh')drawShift(); if(p==='p-rec')drawRecord(); if(p==='p-cmp')drawCmp();
+}));
+
+// ---------- 配分を比べる
+['selx','sely'].forEach((id,j)=>{$(id).innerHTML=Object.keys(DATA).map(k=>`<option value="${k}">${DATA[k].name}</option>`).join('');});
+$('selx').value='A';$('sely').value='B';
+$('item').innerHTML=ITEMS.map((n,i)=>`<option value="${i}">${n}</option>`).join('');
+let K=1,IT=0,ITK=1;
+function yvec(){const base=DATA[$('sely').value].v;return base.map((v,i)=>v*K*(i===IT?ITK:1));}
+function pairKey(a,b){return [a,b].sort().join('');}
+function drawCmp(){
+  const xk=$('selx').value,yk=$('sely').value;
+  const x=DATA[xk].v.map(v=>v/1000), y=yvec().map(v=>v/1000);
+  $('lgx').textContent='左：'+DATA[xk].name;$('lgy').textContent='右：'+DATA[yk].name;$('ynm').textContent=yk;
+  $('kv').textContent=K.toFixed(1);
+  $('itemv').textContent=`${nf(DATA[yk].v[IT]*K*ITK)} 円（${ITK.toFixed(2)} 倍）`;
+  const d=dot(x,y),a=norm(x),b=norm(y),c=cosv(x,y);
+  $('dot').textContent=nf(d);$('nx').textContent=nf(a);$('ny').textContent=nf(b);$('nxy').textContent=nf(a*b);$('cos').textContent=f3(c);
+  // 棒グラフ：構成比（合計 1）で並べる
+  const cv=$('bars'),g=cv.getContext('2d'),W=cv.width,H=cv.height;g.clearRect(0,0,W,H);
+  const sx=x.reduce((s,v)=>s+v,0),sy=y.reduce((s,v)=>s+v,0);
+  const L=128,R=W-46,top=8,rowh=(H-34)/ITEMS.length,max=0.45;
+  g.font='12px '+css('--f-body');g.textBaseline='middle';
+  g.strokeStyle=css('--line');g.fillStyle=css('--muted');
+  for(const t of [0,0.1,0.2,0.3,0.4]){const xx=L+(R-L)*t/max;g.beginPath();g.moveTo(xx,top);g.lineTo(xx,H-26);g.stroke();g.textAlign='center';g.fillText(t.toFixed(1),xx,H-14);}
+  g.textAlign='left';g.fillText('構成比',R+6,H-14);
+  ITEMS.forEach((n,i)=>{
+    const yy=top+rowh*i;g.fillStyle=css('--ink');g.textAlign='right';g.fillText(n,L-6,yy+rowh/2);
+    const px=sx>0?x[i]/sx:0,py=sy>0?y[i]/sy:0;
+    g.fillStyle=css('--a');g.fillRect(L,yy+3,(R-L)*px/max,rowh/2-3);
+    g.fillStyle=css('--b');g.fillRect(L,yy+rowh/2,(R-L)*py/max,rowh/2-3);
+  });
+  // 記録：もとの金額での値（k=1、費目の倍率 1 のとき）
+  if(xk!==yk && K===1 && ITK===1){S.pairs[pairKey(xk,yk)]=+c.toFixed(3);}
+  return c;
+}
+function touchCmp(){const c=drawCmp();if(K!==1){S.k=K;S.kcos=+c.toFixed(3);S.kpair=$('selx').value+'と'+$('sely').value;}save();}
+$('selx').addEventListener('change',touchCmp);$('sely').addEventListener('change',touchCmp);
+$('kk').addEventListener('input',e=>{K=+e.target.value;touchCmp();});
+$('item').addEventListener('change',e=>{IT=+e.target.value;ITK=1;$('itemr').value=1;touchCmp();});
+$('itemr').addEventListener('input',e=>{ITK=+e.target.value;touchCmp();});
+$('cmpreset').addEventListener('click',()=>{K=1;ITK=1;$('kk').value=1;$('itemr').value=1;touchCmp();});
+
+// ---------- 高次元
+const DIMS=[2,3,5,10,30,100,300,1000];
+let hdCache={};
+function randn(){let u=0,v=0;while(u===0)u=Math.random();while(v===0)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function sample(d){
+  if(hdCache[d])return hdCache[d];
+  const out=new Float64Array(2000);
+  for(let k=0;k<2000;k++){let xy=0,xx=0,yy=0;for(let i=0;i<d;i++){const a=randn(),b=randn();xy+=a*b;xx+=a*a;yy+=b*b;}out[k]=xy/Math.sqrt(xx*yy);}
+  return hdCache[d]=out;
+}
+function drawHist(){
+  const d=DIMS[+$('dim').value];$('dimv').textContent=d;
+  const s=sample(d),nb=40,cnt=new Array(nb).fill(0);
+  let inside=0,mx=-1;s.forEach(v=>{cnt[Math.min(nb-1,Math.floor((v+1)/2*nb))]++;if(Math.abs(v)<=0.1)inside++;if(v>mx)mx=v;});
+  $('hd1').textContent=d+' 次元';$('hd2').textContent=(inside/s.length*100).toFixed(1)+' %';$('hd3').textContent=f3(mx);
+  const cv=$('hist'),g=cv.getContext('2d'),W=cv.width,H=cv.height;g.clearRect(0,0,W,H);
+  const L=20,R=W-20,B=H-30,T=10,m=Math.max(...cnt);
+  g.fillStyle=css('--a');cnt.forEach((c,i)=>{const x0=L+(R-L)*i/nb,h=(B-T)*c/m;g.fillRect(x0+1,B-h,(R-L)/nb-2,h);});
+  g.strokeStyle=css('--warn');g.beginPath();g.moveTo((L+R)/2,T);g.lineTo((L+R)/2,B);g.stroke();
+  g.fillStyle=css('--muted');g.font='12px '+css('--f-body');g.textAlign='center';g.textBaseline='top';
+  [-1,-0.5,0,0.5,1].forEach(t=>g.fillText(t.toFixed(1),L+(R-L)*(t+1)/2,B+6));
+}
+$('dim').addEventListener('input',drawHist);
+
+// ---------- ずらす
+const HOURS=[10,11,12,13,14,15,16,17,18,19];
+const A0=[0,0.5,0.5,0,0,0,0,0,0,0];
+let SH=0;
+const shiftB=k=>A0.map((_,i)=>i-k>=0?A0[i-k]:0);
+function drawShift(){
+  const B=shiftB(SH),P=A0.map((v,i)=>v*B[i]),d=P.reduce((s,v)=>s+v,0),c=cosv(A0,B);
+  $('shv').textContent=SH;$('sdot').textContent=d.toFixed(2);$('scos').textContent=c===0?'0':c.toFixed(1);
+  const cv=$('shc'),g=cv.getContext('2d'),W=cv.width,H=cv.height;g.clearRect(0,0,W,H);
+  const L=60,R=W-20,bw=(R-L)/HOURS.length,ya=150,yp=330,sc=180;
+  g.strokeStyle=css('--line');g.beginPath();g.moveTo(L,ya);g.lineTo(R,ya);g.moveTo(L,yp);g.lineTo(R,yp);g.stroke();
+  g.font='12px '+css('--f-body');g.textBaseline='middle';
+  HOURS.forEach((h,i)=>{
+    const x=L+bw*i;
+    g.fillStyle=css('--a');g.fillRect(x+bw*0.15,ya-A0[i]*sc,bw*0.7,A0[i]*sc);
+    g.fillStyle=css('--b');g.fillRect(x+bw*0.15,ya,bw*0.7,B[i]*sc);
+    g.fillStyle=css('--pos');g.fillRect(x+bw*0.15,yp-P[i]*sc*1.6,bw*0.7,P[i]*sc*1.6);
+    g.fillStyle=css('--muted');g.textAlign='center';g.fillText(h+'時',x+bw/2,yp+14);
+  });
+  g.textAlign='left';g.fillStyle=css('--a');g.fillText('店A',4,ya-40);g.fillStyle=css('--b');g.fillText('店B',4,ya+40);g.fillStyle=css('--pos');g.fillText('かけた',4,yp-20);g.fillText('もの',4,yp-6);
+  const rows=Object.keys(S.shifts).map(Number).sort((a,b)=>a-b);
+  $('shtab').innerHTML='<tr><th>ずらした時間</th><th>内積</th><th>コサイン類似度</th></tr>'+rows.map(k=>`<tr><td>${k} 時間</td><td>${S.shifts[k].d}</td><td>${S.shifts[k].c}</td></tr>`).join('');
+}
+function touchShift(){const B=shiftB(SH);S.shifts[SH]={d:A0.reduce((s,v,i)=>s+v*B[i],0).toFixed(2),c:(cosv(A0,B)===0?'0':cosv(A0,B).toFixed(1))};save();drawShift();}
+$('shp').addEventListener('click',()=>{if(SH<8){SH++;touchShift();}});
+$('shm').addEventListener('click',()=>{if(SH>0){SH--;touchShift();}});
+
+// ---------- 記録
+function fmt(iso){if(!iso)return '—';const d=new Date(iso),p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}
+function drawRecord(){
+  $('rstamp').textContent=fmt(S.stamp);
+  const pv=k=>S.pairs[k]!==undefined?f3(S.pairs[k]):'（まだ比べていません）';
+  $('r1ab').textContent=pv('AB');$('r1ac').textContent=pv('AC');$('r1bc').textContent=pv('BC');
+  $('r1k').textContent=S.k!==null?S.k.toFixed(1)+'（'+S.kpair+'）':'（まだ操作していません）';
+  $('r1kc').textContent=S.kcos!==null?f3(S.kcos):'—';
+  const rows=Object.keys(S.shifts).map(Number).sort((a,b)=>a-b);
+  $('r3t').innerHTML='<tr><th>ずらした時間</th><th>内積</th><th>コサイン類似度</th></tr>'+(rows.length?rows.map(k=>`<tr><td>${k} 時間</td><td>${S.shifts[k].d}</td><td>${S.shifts[k].c}</td></tr>`).join(''):'<tr><td colspan="3">（まだ操作していません）</td></tr>');
+  const cv=$('r3c'),g=cv.getContext('2d'),W=cv.width,H=cv.height;g.clearRect(0,0,W,H);
+  const last=rows.length?rows[rows.length-1]:0,B=shiftB(last),bw=(W-20)/10;
+  g.strokeStyle=css('--line');g.beginPath();g.moveTo(10,H/2);g.lineTo(W-10,H/2);g.stroke();
+  A0.forEach((v,i)=>{g.fillStyle=css('--a');g.fillRect(10+bw*i+bw*0.15,H/2-v*110,bw*0.7,v*110);g.fillStyle=css('--b');g.fillRect(10+bw*i+bw*0.15,H/2,bw*0.7,B[i]*110);});
+  $('r3m').textContent=rows.length?last+' 時間（図はそのときの店A・店B）':'—';
+}
+$('rclear').addEventListener('click',()=>{S=fresh();try{localStorage.removeItem(KEY)}catch(e){}K=1;ITK=1;SH=0;$('kk').value=1;$('itemr').value=1;drawCmp();drawShift();drawRecord();});
+
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{drawCmp();drawHist();drawShift();drawRecord();});}catch(e){}
+drawCmp();
+})();
+</script>
+</body>
+</html>
