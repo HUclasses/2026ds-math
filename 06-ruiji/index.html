@@ -173,10 +173,10 @@ footer{color:var(--muted);font-size:.8rem}
             <dt>A と B</dt><dd id="r1ab">—</dd>
             <dt>A と C</dt><dd id="r1ac">—</dd>
             <dt>B と C</dt><dd id="r1bc">—</dd>
-            <dt>最後に試した <i>k</i></dt><dd id="r1k">—</dd>
-            <dt>そのときの値</dt><dd id="r1kc">—</dd>
+            <dt>A と B で最後に試した <i>k</i></dt><dd id="r1k">—</dd>
+            <dt>そのときの値（A と B）</dt><dd id="r1kc">—</dd>
           </dl>
-          <p class="note">A・B・C の値は、金額を変える前（もとの金額）のコサイン類似度です。</p>
+          <p class="note">A・B・C の値は、金額を変える前（もとの金額）のコサイン類似度です。<i>k</i> は、「比べる2つ」が A と B のときだけ記録します。</p>
         </div>
         <div class="card">
           <h3>Check 06-3　ずらした</h3>
@@ -254,7 +254,7 @@ function drawCmp(){
   if(xk!==yk && K===1 && ITK===1){S.pairs[pairKey(xk,yk)]=+c.toFixed(3);}
   return c;
 }
-function touchCmp(){const c=drawCmp();if(K!==1){S.k=K;S.kcos=+c.toFixed(3);S.kpair=$('selx').value+'と'+$('sely').value;}save();}
+function touchCmp(){const c=drawCmp();if(K!==1&&ITK===1&&pairKey($('selx').value,$('sely').value)==='AB'){S.k=K;S.kcos=+c.toFixed(3);S.kpair='AとB';}save();}
 $('selx').addEventListener('change',touchCmp);$('sely').addEventListener('change',touchCmp);
 $('kk').addEventListener('input',e=>{K=+e.target.value;touchCmp();});
 $('item').addEventListener('change',e=>{IT=+e.target.value;ITK=1;$('itemr').value=1;touchCmp();});
@@ -318,7 +318,7 @@ function drawRecord(){
   $('rstamp').textContent=fmt(S.stamp);
   const pv=k=>S.pairs[k]!==undefined?f3(S.pairs[k]):'（まだ比べていません）';
   $('r1ab').textContent=pv('AB');$('r1ac').textContent=pv('AC');$('r1bc').textContent=pv('BC');
-  $('r1k').textContent=S.k!==null?S.k.toFixed(1)+'（'+S.kpair+'）':'（まだ操作していません）';
+  $('r1k').textContent=S.k!==null?S.k.toFixed(1):'（A と B でまだ操作していません）';
   $('r1kc').textContent=S.kcos!==null?f3(S.kcos):'—';
   const rows=Object.keys(S.shifts).map(Number).sort((a,b)=>a-b);
   $('r3t').innerHTML='<tr><th>ずらした時間</th><th>内積</th><th>コサイン類似度</th></tr>'+(rows.length?rows.map(k=>`<tr><td>${k} 時間</td><td>${S.shifts[k].d}</td><td>${S.shifts[k].c}</td></tr>`).join(''):'<tr><td colspan="3">（まだ操作していません）</td></tr>');
