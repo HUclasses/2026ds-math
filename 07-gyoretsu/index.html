@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>行列で動かす</title>
+<meta name="description" content="2行2列の行列で平面の絵を動かし、行列×ベクトルの計算と、行列を続けてかけたときの順番の違いを確かめる教材（データサイエンスのための数学 第7回）">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Maru+Gothic:wght@700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* 第5回「数のまとまり」と同じ系統。上にタブ、各タブは「さわる場所（左）」と「数の表示（右）」の2列、スマホでは縦に積む。 */
+:root{
+  --bg:#edf2f6; --panel:#ffffff; --ink:#1b2733; --muted:#596a7a; --line:#d3dde6;
+  --a:#3c6e9c; --b:#dd8417; --c:#1f8f82; --warn:#c43f37; --sel:#7a4fc0; --pos:#3e9a5a; --neg:#c9483f;
+  --f-display:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-num:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --c:#47bfae; --warn:#ef6b62; --sel:#b394ee; --pos:#5cc27b; --neg:#ef6b62; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1720; --panel:#16212c; --ink:#e4ebf2; --muted:#95a6b7; --line:#2a3947;
+  --a:#6ea2d4; --b:#f2a540; --c:#47bfae; --warn:#ef6b62; --sel:#b394ee; --pos:#5cc27b; --neg:#ef6b62; color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.65;
+  padding-block:20px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px}
+h1{font-family:var(--f-display);font-size:1.7rem;margin:0;letter-spacing:.02em}
+.course{color:var(--muted);font-size:.85rem;letter-spacing:.06em}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:700;border:1px solid var(--line);background:transparent;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:14px}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+h2{font-family:var(--f-display);font-size:1.15rem;margin:0}
+h3{font-size:.95rem;margin:0;color:var(--muted);font-weight:700}
+p{margin:0}
+.note{color:var(--muted);font-size:.88rem}
+.check{display:inline-block;font-size:.78rem;font-weight:700;letter-spacing:.04em;color:var(--sel);border:1px solid currentColor;border-radius:6px;padding:0 6px;margin-right:6px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:5px 12px;border-radius:8px;cursor:pointer}
+button.btn:hover{border-color:var(--muted)}
+button.btn[aria-pressed="true"]{border-color:var(--sel);box-shadow:inset 0 0 0 1px var(--sel)}
+select{font:inherit;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink)}
+input[type=range]{width:100%;accent-color:var(--sel)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+canvas{display:block;max-width:100%;height:auto;border-radius:8px}
+.big{font-family:var(--f-num);font-size:1.6rem}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;align-items:baseline}
+.kv dt{color:var(--muted);font-size:.9rem}
+.kv dd{margin:0;font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hl{color:var(--sel);font-weight:700}
+.fict{font-size:.8rem;color:var(--muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.85rem}
+.legend span::before{content:"";display:inline-block;width:14px;height:10px;border-radius:2px;background:currentColor;vertical-align:middle;margin-right:6px}
+.rec{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.rec dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:.92rem}
+.rec dt{color:var(--muted)}
+.rec dd{margin:0;font-family:var(--f-num)}
+.stamp{font-family:var(--f-num);font-size:.9rem;color:var(--muted)}
+table.t{border-collapse:collapse;font-size:.85rem}
+table.t td,table.t th{border-bottom:1px solid var(--line);padding:2px 8px;text-align:right}
+table.t th{color:var(--muted);font-weight:400}
+table.t td:first-child,table.t th:first-child{text-align:left}
+footer{color:var(--muted);font-size:.8rem}
+
+.mat{display:inline-grid;grid-template-columns:auto auto;gap:2px 14px;padding:4px 10px;border-left:2px solid var(--ink);border-right:2px solid var(--ink);border-radius:10px;font-family:var(--f-num);font-size:1.15rem;text-align:right}
+.calc{font-family:var(--f-num);font-size:.98rem;line-height:1.9}
+.calc .r1{color:var(--a)} .calc .r2{color:var(--b)}
+.sl{display:grid;grid-template-columns:2.2em 1fr 3.2em;gap:6px;align-items:center}
+.sl b{font-family:var(--f-num)}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
+.rec dl{align-content:start}
+.ok{color:var(--pos);font-weight:700} .ng{color:var(--warn);font-weight:700}
+</style>
+</head><body>
+<div class="wrap">
+  <header>
+    <h1>行列で動かす</h1>
+    <span class="course">データサイエンスのための数学　第7回</span>
+  </header>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-mv" aria-selected="true" aria-controls="p-mv">絵を動かす</button>
+    <button class="tab" role="tab" id="t-sq" aria-selected="false" aria-controls="p-sq">続けて動かす</button>
+    <button class="tab" role="tab" id="t-rec" aria-selected="false" aria-controls="p-rec">あなたの操作の記録</button>
+  </div>
+
+  <section id="p-mv" role="tabpanel" aria-labelledby="t-mv">
+    <div class="grid">
+      <div class="card">
+        <h2><span class="check">Check 07-2</span>家の絵に行列をかける</h2>
+        <canvas id="cv" width="560" height="560" aria-label="平面の上の家の絵。灰色がもとの絵、オレンジが行列をかけたあとの絵"></canvas>
+        <div class="legend"><span style="color:#9aa7b3">もとの絵</span><span style="color:var(--b)">行列をかけたあと</span><span style="color:var(--sel)">点 P と、動いた先</span></div>
+      </div>
+      <div class="card">
+        <h3>ボタンで選ぶ</h3>
+        <div class="row" id="presets"></div>
+        <h3>4つの数を自分で変える</h3>
+        <div id="sliders"></div>
+        <p class="note">行列 <i>A</i> ＝</p>
+        <div><span class="mat" id="matA"></span></div>
+        <h3>点 P に行列をかける（各行との内積）</h3>
+        <div class="calc" id="calc"></div>
+        <p class="note">1行目と P の内積が、動いた先の横の位置。2行目と P の内積が、縦の位置。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="p-sq" role="tabpanel" aria-labelledby="t-sq" hidden>
+    <div class="card">
+      <h2><span class="check">Check 07-2</span>2つの行列を続けてかける</h2>
+      <div class="row">
+        <label for="m1">行列 1：</label><select id="m1"></select>
+        <label for="m2">行列 2：</label><select id="m2"></select>
+      </div>
+      <div class="pair">
+        <div><h3 id="h12"></h3><canvas id="cv12" width="420" height="420" aria-label="行列1をかけてから行列2をかけた絵"></canvas><div class="calc" id="p12"></div></div>
+        <div><h3 id="h21"></h3><canvas id="cv21" width="420" height="420" aria-label="行列2をかけてから行列1をかけた絵"></canvas><div class="calc" id="p21"></div></div>
+      </div>
+      <p id="same" class="big"></p>
+      <p class="note">2つをまとめた行列（行列の積）も表示しています。あとからかける方を左に書きます。</p>
+    </div>
+  </section>
+
+  <section id="p-rec" role="tabpanel" aria-labelledby="t-rec" hidden>
+    <div class="card">
+      <h2><span class="check">Check 07-3</span>あなたの操作の記録</h2>
+      <p class="note">このページで操作した内容です。この画面のスクリーンショットを撮って提出します（PC の時計も写すこと）。記録はこのブラウザの中だけに保存されます。</p>
+      <div class="rec">
+        <dl id="recA"></dl>
+        <dl id="recB"></dl>
+      </div>
+      <p class="stamp" id="stamp"></p>
+      <div class="row"><button class="btn" id="clear">記録を消す</button></div>
+    </div>
+  </section>
+  <footer>データサイエンスのための数学（2026年度）第7回の教材。点や絵の座標は説明用に作ったものです。</footer>
+</div>
+<script>
+const PRE=[['そのまま',[1,0,0,1]],['横に2倍',[2,0,0,1]],['斜めに2倍',[1.5,0.5,0.5,1.5]],['90°回す',[0,-1,1,0]],['つぶす',[1,0,0,0]]];
+const SQ=[['横に2倍',[2,0,0,1]],['斜めに2倍',[1.5,0.5,0.5,1.5]],['90°回す',[0,-1,1,0]],['横にずらす',[1,1,0,1]],['縦に半分',[1,0,0,0.5]],['つぶす',[1,0,0,0]]];
+const HOUSE=[[0,0],[1,0],[1,1],[0.5,1.6],[0,1]], DOOR=[[0.35,0],[0.65,0],[0.65,0.5],[0.35,0.5]], P=[1,2];
+const $=id=>document.getElementById(id);
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const f=v=>{const r=Math.round(v*100)/100;return (Object.is(r,-0)?0:r).toString()};
+const mul=(M,p)=>[M[0]*p[0]+M[1]*p[1],M[2]*p[0]+M[3]*p[1]];
+const mm=(X,Y)=>[X[0]*Y[0]+X[1]*Y[2],X[0]*Y[1]+X[1]*Y[3],X[2]*Y[0]+X[3]*Y[2],X[2]*Y[1]+X[3]*Y[3]]; // X Y
+const eq=(X,Y)=>X.every((v,i)=>Math.abs(v-Y[i])<1e-9);
+const matHTML=M=>M.map(v=>`<span>${f(v)}</span>`).join('');
+let R={presets:{},custom:null,pair:null,last:null};
+try{const s=localStorage.getItem('ds07rec');if(s)R=Object.assign(R,JSON.parse(s))}catch(e){}
+function save(){R.last=new Date().toLocaleString('ja-JP');try{localStorage.setItem('ds07rec',JSON.stringify(R))}catch(e){};rec()}
+function draw(cv,M,lim,showP){
+  const g=cv.getContext('2d'),W=cv.width,H=cv.height,s=W/(2*lim),X=x=>W/2+x*s,Y=y=>H/2-y*s;
+  g.clearRect(0,0,W,H);g.fillStyle=css('--panel');g.fillRect(0,0,W,H);
+  g.strokeStyle=css('--line');g.lineWidth=1;
+  for(let i=-lim;i<=lim;i++){g.beginPath();g.moveTo(X(i),0);g.lineTo(X(i),H);g.stroke();g.beginPath();g.moveTo(0,Y(i));g.lineTo(W,Y(i));g.stroke()}
+  g.strokeStyle=css('--muted');g.lineWidth=1.5;g.beginPath();g.moveTo(0,Y(0));g.lineTo(W,Y(0));g.moveTo(X(0),0);g.lineTo(X(0),H);g.stroke();
+  g.fillStyle=css('--muted');g.font='12px sans-serif';for(let i=-lim;i<=lim;i++)if(i){g.fillText(i,X(i)+3,Y(0)+14);g.fillText(i,X(0)+4,Y(i)-3)}
+  const poly=(pts,fill,stroke,lw)=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();if(fill){g.fillStyle=fill;g.fill()}g.strokeStyle=stroke;g.lineWidth=lw;g.stroke()};
+  poly(HOUSE,'rgba(154,167,179,.25)','#9aa7b3',1.5);
+  const o=css('--b');poly(HOUSE.map(p=>mul(M,p)),o+'55',o,3);poly(DOOR.map(p=>mul(M,p)),css('--a'),css('--a'),1.5);
+  if(showP){const q=mul(M,P),c=css('--sel');
+    g.fillStyle=c;g.beginPath();g.arc(X(P[0]),Y(P[1]),5,0,7);g.fill();g.fillText('P',X(P[0])+7,Y(P[1])-6);
+    g.setLineDash([5,4]);g.strokeStyle=c;g.beginPath();g.moveTo(X(P[0]),Y(P[1]));g.lineTo(X(q[0]),Y(q[1]));g.stroke();g.setLineDash([]);
+    g.beginPath();g.arc(X(q[0]),Y(q[1]),7,0,7);g.fill();g.font='bold 14px sans-serif';g.fillText('AP',X(q[0])+9,Y(q[1])+16)}
+}
+// ---- 絵を動かす ----
+let A=[1,0,0,1];
+const names=['a','b','c','d'];
+$('sliders').innerHTML=names.map((n,i)=>`<div class="sl"><i>${n}</i><input type="range" id="s${i}" min="-2" max="2" step="0.5" value="${A[i]}" aria-label="${n}"><b id="v${i}"></b></div>`).join('');
+$('presets').innerHTML=PRE.map((p,i)=>`<button class="btn" data-i="${i}">${p[0]}</button>`).join('');
+$('presets').onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;A=[...PRE[i][1]];names.forEach((n,k)=>$('s'+k).value=A[k]);R.presets[PRE[i][0]]=true;upd();save()};
+names.forEach((n,k)=>$('s'+k).oninput=()=>{A[k]=+$('s'+k).value;upd();const pi=PRE.findIndex(p=>eq(p[1],A));if(pi<0){R.custom={M:[...A],P:mul(A,P)}}save()});
+function upd(){
+  names.forEach((n,k)=>$('v'+k).textContent=f(A[k]));
+  $('matA').innerHTML=matHTML(A);
+  const q=mul(A,P);
+  $('calc').innerHTML=`P ＝ (${P[0]}, ${P[1]})<br><span class="r1">1行目：${f(A[0])}×${P[0]} ＋ ${f(A[1])}×${P[1]} ＝ ${f(q[0])}</span><br><span class="r2">2行目：${f(A[2])}×${P[0]} ＋ ${f(A[3])}×${P[1]} ＝ ${f(q[1])}</span><br><b>AP ＝ (${f(q[0])}, ${f(q[1])})</b>`;
+  [...$('presets').children].forEach((b,i)=>b.setAttribute('aria-pressed',eq(PRE[i][1],A)));
+  draw($('cv'),A,4,true);
+}
+// ---- 続けて動かす ----
+$('m1').innerHTML=$('m2').innerHTML=SQ.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join('');$('m2').value=2;
+function upd2(){
+  const i=+$('m1').value,j=+$('m2').value,[n1,M1]=SQ[i],[n2,M2]=SQ[j];
+  const C12=mm(M2,M1),C21=mm(M1,M2);
+  $('h12').textContent=`先に「${n1}」、次に「${n2}」`;$('h21').textContent=`先に「${n2}」、次に「${n1}」`;
+  draw($('cv12'),C12,3,false);draw($('cv21'),C21,3,false);
+  $('p12').innerHTML=`まとめた行列：<span class="mat">${matHTML(C12)}</span>`;$('p21').innerHTML=`まとめた行列：<span class="mat">${matHTML(C21)}</span>`;
+  const same=eq(C12,C21);$('same').innerHTML=i===j?'<span class="note">別々の2つの行列を選んでください。</span>':(same?'<span class="ok">順番を変えても同じ</span>':'<span class="ng">順番を変えると違う</span>');
+  if(i!==j){R.pair={a:n1,b:n2,same};save()}
+}
+$('m1').onchange=$('m2').onchange=upd2;
+// ---- 記録 ----
+function rec(){
+  const ps=PRE.map(p=>`<dt>${p[0]}</dt><dd>${R.presets[p[0]]?'✓ 試した':'―'}</dd>`).join('');
+  const c=R.custom?`<dt>自分で作った行列</dt><dd>a=${f(R.custom.M[0])}, b=${f(R.custom.M[1])}, c=${f(R.custom.M[2])}, d=${f(R.custom.M[3])}</dd><dt>そのときの AP</dt><dd>(${f(R.custom.P[0])}, ${f(R.custom.P[1])})</dd>`:'<dt>自分で作った行列</dt><dd>―（スライダーで作る）</dd>';
+  $('recA').innerHTML='<dt><b>絵を動かす</b></dt><dd></dd>'+ps+c;
+  $('recB').innerHTML='<dt><b>続けて動かす</b></dt><dd></dd>'+(R.pair?`<dt>選んだ2つ</dt><dd>「${R.pair.a}」と「${R.pair.b}」</dd><dt>順番を変えると</dt><dd>${R.pair.same?'同じ':'違う'}</dd>`:'<dt>選んだ2つ</dt><dd>―</dd>');
+  $('stamp').textContent='最後に操作した日時：'+(R.last||'―');
+}
+$('clear').onclick=()=>{R={presets:{},custom:null,pair:null,last:null};try{localStorage.removeItem('ds07rec')}catch(e){};rec()};
+// ---- タブ ----
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{document.querySelectorAll('.tab').forEach(u=>{u.setAttribute('aria-selected',u===t);$(u.getAttribute('aria-controls')).hidden=u!==t});if(t.id==='t-sq')upd2();if(t.id==='t-rec')rec();if(t.id==='t-mv')upd()});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{upd();upd2()});
+upd();rec();
+</script>
+</body>
+</html>
