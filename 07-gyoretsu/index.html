@@ -78,6 +78,7 @@ footer{color:var(--muted);font-size:.8rem}
 .rec dl{align-content:start}
 .ok{color:var(--pos);font-weight:700} .ng{color:var(--warn);font-weight:700}
 #presets.moving .btn{pointer-events:none;opacity:.6}
+.stage{margin:.1rem 0 .3rem;font-weight:700;color:var(--b);min-height:1.4em}
 </style>
 </head><body>
 <div class="wrap">
@@ -121,9 +122,10 @@ footer{color:var(--muted);font-size:.8rem}
         <label for="m2">行列 2：</label><select id="m2"></select>
       </div>
       <div class="pair">
-        <div><h3 id="h12"></h3><canvas id="cv12" width="420" height="420" aria-label="行列1をかけてから行列2をかけた絵"></canvas><div class="calc" id="p12"></div></div>
-        <div><h3 id="h21"></h3><canvas id="cv21" width="420" height="420" aria-label="行列2をかけてから行列1をかけた絵"></canvas><div class="calc" id="p21"></div></div>
+        <div><h3 id="h12"></h3><p class="stage" id="g12">&nbsp;</p><canvas id="cv12" width="420" height="420" aria-label="行列1をかけてから行列2をかけた絵"></canvas><div class="calc" id="p12"></div></div>
+        <div><h3 id="h21"></h3><p class="stage" id="g21">&nbsp;</p><canvas id="cv21" width="420" height="420" aria-label="行列2をかけてから行列1をかけた絵"></canvas><div class="calc" id="p21"></div></div>
       </div>
+      <div class="row"><button class="btn" id="replay">もう一度見る</button><span class="note">もとの絵 → 1つ目をかける → 2つ目をかける、の順に動きます。点線は、1つ目をかけたところ（途中の形）です。</span></div>
       <p id="same" class="big"></p>
       <p class="note">2つをまとめた行列（行列の積）も表示しています。あとからかける方を左に書きます。</p>
     </div>
@@ -157,7 +159,7 @@ const matHTML=M=>M.map(v=>`<span>${f(v)}</span>`).join('');
 let R={presets:{},custom:null,pair:null,last:null};
 try{const s=localStorage.getItem('ds07rec');if(s)R=Object.assign(R,JSON.parse(s))}catch(e){}
 function save(){R.last=new Date().toLocaleString('ja-JP');try{localStorage.setItem('ds07rec',JSON.stringify(R))}catch(e){};rec()}
-function draw(cv,M,lim,showP){
+function draw(cv,M,lim,showP,ghost){
   const g=cv.getContext('2d'),W=cv.width,H=cv.height,s=W/(2*lim),X=x=>W/2+x*s,Y=y=>H/2-y*s;
   g.clearRect(0,0,W,H);g.fillStyle=css('--panel');g.fillRect(0,0,W,H);
   g.strokeStyle=css('--line');g.lineWidth=1;
@@ -166,6 +168,7 @@ function draw(cv,M,lim,showP){
   g.fillStyle=css('--muted');g.font='12px sans-serif';for(let i=-lim;i<=lim;i++)if(i){g.fillText(i,X(i)+3,Y(0)+14);g.fillText(i,X(0)+4,Y(i)-3)}
   const poly=(pts,fill,stroke,lw)=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(X(p[0]),Y(p[1])):g.moveTo(X(p[0]),Y(p[1])));g.closePath();if(fill){g.fillStyle=fill;g.fill()}g.strokeStyle=stroke;g.lineWidth=lw;g.stroke()};
   poly(HOUSE,'rgba(154,167,179,.25)','#9aa7b3',1.5);
+  if(ghost){g.setLineDash([6,5]);poly(HOUSE.map(p=>mul(ghost,p)),null,css('--muted'),2);g.setLineDash([])}   // 1つ目をかけたところ（途中の形）
   const o=css('--b');poly(HOUSE.map(p=>mul(M,p)),o+'55',o,3);poly(DOOR.map(p=>mul(M,p)),css('--a'),css('--a'),1.5);
   if(showP){const q=mul(M,P),c=css('--sel');
     g.fillStyle=c;g.beginPath();g.arc(X(P[0]),Y(P[1]),5,0,7);g.fill();g.fillText('P',X(P[0])+7,Y(P[1])-6);
@@ -204,16 +207,29 @@ function upd(){
 }
 // ---- 続けて動かす ----
 $('m1').innerHTML=$('m2').innerHTML=SQ.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join('');$('m2').value=2;
-function upd2(){
-  const i=+$('m1').value,j=+$('m2').value,[n1,M1]=SQ[i],[n2,M2]=SQ[j];
-  const C12=mm(M2,M1),C21=mm(M1,M2);
+let run2=0;   // 選び直したら、前のアニメーションは止める
+async function upd2(){
+  const i=+$('m1').value,j=+$('m2').value,[n1,M1]=SQ[i],[n2,M2]=SQ[j],I=[1,0,0,1];
+  const C12=mm(M2,M1),C21=mm(M1,M2),me=++run2;
   $('h12').textContent=`先に「${n1}」、次に「${n2}」`;$('h21').textContent=`先に「${n2}」、次に「${n1}」`;
-  draw($('cv12'),C12,3,false);draw($('cv21'),C21,3,false);
+  $('p12').innerHTML=$('p21').innerHTML='&nbsp;';$('same').innerHTML='&nbsp;';
+  if(i!==j){R.pair={a:n1,b:n2,same:eq(C12,C21)};save()}
+  const show=(a,b,ga,gb,ta,tb)=>{draw($('cv12'),a,3,false,ga);draw($('cv21'),b,3,false,gb);$('g12').textContent=ta;$('g21').textContent=tb};
+  // t を 0→1 に動かしながら f(t) を描く。選び直されたら false を返して止める
+  const play=(ms,f)=>new Promise(ok=>{if(still()){f(1);ok(me===run2);return}const t0=performance.now();
+    const step=now=>{if(me!==run2){ok(false);return}const t=Math.min(1,(now-t0)/ms);f(ease(t));t<1?requestAnimationFrame(step):ok(true)};requestAnimationFrame(step)});
+  show(I,I,null,null,'① もとの絵','① もとの絵');
+  if(!await wait(500).then(()=>me===run2))return;
+  // ② 1つ目をかける
+  if(!await play(900,t=>show(lerp(I,M1,t),lerp(I,M2,t),null,null,`② 先に「${n1}」をかける`,`② 先に「${n2}」をかける`)))return;
+  if(!await wait(700).then(()=>me===run2))return;
+  // ③ 2つ目を、途中の形にかける
+  if(!await play(900,t=>show(mm(lerp(I,M2,t),M1),mm(lerp(I,M1,t),M2),M1,M2,`③ 次に「${n2}」をかける`,`③ 次に「${n1}」をかける`)))return;
+  show(C12,C21,M1,M2,`③ 次に「${n2}」をかけた`,`③ 次に「${n1}」をかけた`);
   $('p12').innerHTML=`まとめた行列：<span class="mat">${matHTML(C12)}</span>`;$('p21').innerHTML=`まとめた行列：<span class="mat">${matHTML(C21)}</span>`;
-  const same=eq(C12,C21);$('same').innerHTML=i===j?'<span class="note">別々の2つの行列を選んでください。</span>':(same?'<span class="ok">順番を変えても同じ</span>':'<span class="ng">順番を変えると違う</span>');
-  if(i!==j){R.pair={a:n1,b:n2,same};save()}
+  $('same').innerHTML=i===j?'<span class="note">別々の2つの行列を選んでください。</span>':(eq(C12,C21)?'<span class="ok">順番を変えても同じ</span>':'<span class="ng">順番を変えると違う</span>');
 }
-$('m1').onchange=$('m2').onchange=upd2;
+$('m1').onchange=$('m2').onchange=$('replay').onclick=upd2;
 // ---- 記録 ----
 function rec(){
   const ps=PRE.map(p=>`<dt>${p[0]}</dt><dd>${R.presets[p[0]]?'✓ 試した':'―'}</dd>`).join('');
