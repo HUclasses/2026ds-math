@@ -77,6 +77,7 @@ footer{color:var(--muted);font-size:.8rem}
 .pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px}
 .rec dl{align-content:start}
 .ok{color:var(--pos);font-weight:700} .ng{color:var(--warn);font-weight:700}
+#presets.moving .btn{pointer-events:none;opacity:.6}
 </style>
 </head><body>
 <div class="wrap">
@@ -100,6 +101,7 @@ footer{color:var(--muted);font-size:.8rem}
       <div class="card">
         <h3>ボタンで選ぶ</h3>
         <div class="row" id="presets"></div>
+        <p class="note">ボタンを押すと、いったんもとの絵に戻ってから、選んだ行列をかけた形に動きます（前の変形の続きではありません）。</p>
         <h3>4つの数を自分で変える</h3>
         <div id="sliders"></div>
         <p class="note">行列 <i>A</i> ＝</p>
@@ -175,8 +177,23 @@ let A=[1,0,0,1];
 const names=['a','b','c','d'];
 $('sliders').innerHTML=names.map((n,i)=>`<div class="sl"><i>${n}</i><input type="range" id="s${i}" min="-2" max="2" step="0.5" value="${A[i]}" aria-label="${n}"><b id="v${i}"></b></div>`).join('');
 $('presets').innerHTML=PRE.map((p,i)=>`<button class="btn" data-i="${i}">${p[0]}</button>`).join('');
-$('presets').onclick=e=>{const i=e.target.dataset.i;if(i===undefined)return;A=[...PRE[i][1]];names.forEach((n,k)=>$('s'+k).value=A[k]);R.presets[PRE[i][0]]=true;upd();save()};
-names.forEach((n,k)=>$('s'+k).oninput=()=>{A[k]=+$('s'+k).value;upd();const pi=PRE.findIndex(p=>eq(p[1],A));if(pi<0){R.custom={M:[...A],P:mul(A,P)}}save()});
+// ボタンを押したら、いったんもとの絵（そのまま）に戻してから、選んだ行列へ動かす（変形が積み重なっていると思われないように）
+let busy=0;
+const isRot=M=>Math.abs(M[0]-M[3])<1e-9&&Math.abs(M[1]+M[2])<1e-9&&Math.abs(M[0]*M[0]+M[2]*M[2]-1)<1e-9;
+const lerp=(X,Y,t)=>{if(isRot(X)&&isRot(Y)){   // 回転どうしは、角度を少しずつ変える（途中で縮まないように）
+    const a=Math.atan2(X[2],X[0]),b=Math.atan2(Y[2],Y[0]),th=a+(b-a)*t;return [Math.cos(th),-Math.sin(th),Math.sin(th),Math.cos(th)]}
+  return X.map((v,i)=>v+(Y[i]-v)*t)}, ease=t=>t<.5?2*t*t:1-2*(1-t)*(1-t);
+const still=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+function tween(X,Y,ms){return new Promise(ok=>{if(eq(X,Y)||still()){ok();return}const t0=performance.now();
+  const step=now=>{const t=Math.min(1,(now-t0)/ms);A=lerp(X,Y,ease(t));upd();t<1?requestAnimationFrame(step):ok()};requestAnimationFrame(step)})}
+const wait=ms=>new Promise(ok=>setTimeout(ok,still()?0:ms));
+$('presets').onclick=async e=>{const i=e.target.dataset.i;if(i===undefined||busy)return;busy=1;
+  const T=[...PRE[i][1]],I=[1,0,0,1];$('presets').classList.add('moving');
+  await tween([...A],I,450);A=I;upd();await wait(250);   // いったんもとに戻す
+  await tween(I,T,800);A=T;                              // 選んだ行列へ
+  names.forEach((n,k)=>$('s'+k).value=A[k]);R.presets[PRE[i][0]]=true;upd();save();
+  $('presets').classList.remove('moving');busy=0};
+names.forEach((n,k)=>$('s'+k).oninput=()=>{if(busy){$('s'+k).value=A[k];return}A[k]=+$('s'+k).value;upd();const pi=PRE.findIndex(p=>eq(p[1],A));if(pi<0){R.custom={M:[...A],P:mul(A,P)}}save()});
 function upd(){
   names.forEach((n,k)=>$('v'+k).textContent=f(A[k]));
   $('matA').innerHTML=matHTML(A);
