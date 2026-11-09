@@ -175,7 +175,7 @@ function draw(cv,M,lim,showP){
 // ---- 絵を動かす ----
 let A=[1,0,0,1];
 const names=['a','b','c','d'];
-$('sliders').innerHTML=names.map((n,i)=>`<div class="sl"><i>${n}</i><input type="range" id="s${i}" min="-2" max="2" step="0.5" value="${A[i]}" aria-label="${n}"><b id="v${i}"></b></div>`).join('');
+$('sliders').innerHTML=names.map((n,i)=>`<div class="sl"><i>${n}</i><input type="range" id="s${i}" min="-2" max="2" step="0.1" value="${A[i]}" aria-label="${n}"><b id="v${i}"></b></div>`).join('');
 $('presets').innerHTML=PRE.map((p,i)=>`<button class="btn" data-i="${i}">${p[0]}</button>`).join('');
 // ボタンを押したら、いったんもとの絵（そのまま）に戻してから、選んだ行列へ動かす（変形が積み重なっていると思われないように）
 let busy=0;
@@ -195,7 +195,7 @@ $('presets').onclick=async e=>{const i=e.target.dataset.i;if(i===undefined||busy
   $('presets').classList.remove('moving');busy=0};
 names.forEach((n,k)=>$('s'+k).oninput=()=>{if(busy){$('s'+k).value=A[k];return}A[k]=+$('s'+k).value;upd();const pi=PRE.findIndex(p=>eq(p[1],A));if(pi<0){R.custom={M:[...A],P:mul(A,P)}}save()});
 function upd(){
-  names.forEach((n,k)=>$('v'+k).textContent=f(A[k]));
+  names.forEach((n,k)=>{$('v'+k).textContent=f(A[k]);if(busy)$('s'+k).value=A[k]});   // ボタンで動いている間は、スライダーもいっしょに動かす
   $('matA').innerHTML=matHTML(A);
   const q=mul(A,P);
   $('calc').innerHTML=`P ＝ (${P[0]}, ${P[1]})<br><span class="r1">1行目：${f(A[0])}×${P[0]} ＋ ${f(A[1])}×${P[1]} ＝ ${f(q[0])}</span><br><span class="r2">2行目：${f(A[2])}×${P[0]} ＋ ${f(A[3])}×${P[1]} ＝ ${f(q[1])}</span><br><b>AP ＝ (${f(q[0])}, ${f(q[1])})</b>`;
