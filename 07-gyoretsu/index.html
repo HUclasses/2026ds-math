@@ -127,8 +127,6 @@ footer{color:var(--muted);font-size:.8rem}
       </div>
       <div class="row"><button class="btn" id="replay">もう一度見る</button><span class="note">もとの絵 → 1つ目をかける → 2つ目をかける、の順に動きます。点線は、1つ目をかけたところ（途中の形）です。</span></div>
       <p id="same" class="big"></p>
-      <p class="note">2つをまとめた行列（行列の積）も表示しています。あとからかける方を左に書きます。</p>
-      <p class="note">ひとこと：2回に分けてかけても、まとめた行列を1回かけても、同じ形になります。だから、行列を何回続けてかけても、1つの行列にまとめられます（あとで深層学習を学ぶときに、もう一度出てきます）。</p>
     </div>
   </section>
 
@@ -227,7 +225,6 @@ async function upd2(){
   // ③ 2つ目を、途中の形にかける
   if(!await play(900,t=>show(mm(lerp(I,M2,t),M1),mm(lerp(I,M1,t),M2),M1,M2,`③ 次に「${n2}」をかける`,`③ 次に「${n1}」をかける`)))return;
   show(C12,C21,M1,M2,`③ 次に「${n2}」をかけた`,`③ 次に「${n1}」をかけた`);
-  $('p12').innerHTML=`まとめた行列：<span class="mat">${matHTML(C12)}</span>`;$('p21').innerHTML=`まとめた行列：<span class="mat">${matHTML(C21)}</span>`;
   $('same').innerHTML=i===j?'<span class="note">別々の2つの行列を選んでください。</span>':(eq(C12,C21)?'<span class="ok">順番を変えても同じ</span>':'<span class="ng">順番を変えると違う</span>');
 }
 $('m1').onchange=$('m2').onchange=$('replay').onclick=upd2;
